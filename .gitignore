@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# PyInstaller build outputs (rebuild with build.bat)
+build/
+dist/
+
+# temp files written during atomic saves / rotations
+*.pvtmp
