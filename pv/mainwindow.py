@@ -10,19 +10,19 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
 
 from .common import APP_TITLE, Settings, RatingDB, app_icon, is_image, norm, glyph_icon, G
 from .dialogs import show_shortcuts, show_about
-from .editor import EditPage
 from .manager import ManagePage
 from .thumbs import ThumbCache
 from .viewer import ViewPage
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, start_path=None):
+    def __init__(self, start_path=None, start_mode=None):
         super().__init__()
         self.settings = Settings()
         self.ratings = RatingDB()
         self.thumbs = ThumbCache(self)
         self.mode = None
+        self._edit = None          # the editor (and numpy/Pillow) is created on first use
         self._edit_return = 'manage'
         self._was_maximized = False
 
@@ -42,8 +42,7 @@ class MainWindow(QMainWindow):
 
         self.manage = ManagePage(self.thumbs, self.ratings, self.settings)
         self.view = ViewPage(self.thumbs, self.ratings, self.settings)
-        self.edit = EditPage(self.settings)
-        for page in (self.manage, self.view, self.edit):
+        for page in (self.manage, self.view):
             self.stack.addWidget(page)
 
         self.manage.requestView.connect(self.open_viewer)
@@ -55,8 +54,6 @@ class MainWindow(QMainWindow):
         self.view.requestFullscreen.connect(self._set_fullscreen)
         self.view.fileChanged.connect(self.manage.on_external_change)
         self.view.fileDeleted.connect(self.manage.on_external_delete)
-        self.edit.finished.connect(self._edit_finished)
-        self.edit.saved.connect(self._edit_saved)
 
         self.help_menu = QMenu('說明(&H)', self)
         a = self.help_menu.addAction('快速鍵一覽')
@@ -75,7 +72,17 @@ class MainWindow(QMainWindow):
             except TypeError:
                 pass
 
-        self._start(start_path)
+        self._start(start_path, start_mode)
+
+    @property
+    def edit(self):
+        if self._edit is None:
+            from .editor import EditPage
+            self._edit = EditPage(self.settings)
+            self.stack.addWidget(self._edit)
+            self._edit.finished.connect(self._edit_finished)
+            self._edit.saved.connect(self._edit_saved)
+        return self._edit
 
     # ------------------------------------------------------------------ building
     def _build_modebar(self):
@@ -101,12 +108,18 @@ class MainWindow(QMainWindow):
             h.addWidget(b)
         return bar
 
-    def _start(self, start_path):
+    def _start(self, start_path, start_mode=None):
         start_path = os.path.abspath(start_path) if start_path else None
         if start_path and os.path.isfile(start_path) and is_image(start_path):
             self.manage.navigate(os.path.dirname(start_path), select=start_path)
-            self.view.open_path(start_path)
-            self.set_mode('view')
+            if start_mode == 'manage':
+                self.set_mode('manage')
+            elif start_mode == 'edit':
+                self.set_mode('manage')
+                QTimer.singleShot(0, lambda p=start_path: self.open_editor(p))
+            else:
+                self.view.open_path(start_path)
+                self.set_mode('view')
             return
         folder = start_path if start_path and os.path.isdir(start_path) else None
         if folder is None:
@@ -123,7 +136,7 @@ class MainWindow(QMainWindow):
         if mode != 'view' and self.mode == 'view':
             self.view.leave()
         self.mode = mode
-        page = {'manage': self.manage, 'view': self.view, 'edit': self.edit}[mode]
+        page = self.manage if mode == 'manage' else self.view if mode == 'view' else self.edit
         self.stack.setCurrentWidget(page)
         self.mode_buttons[mode].setChecked(True)
         mb = self.menuBar()
@@ -255,5 +268,6 @@ class MainWindow(QMainWindow):
         self.settings.sync()
         self.thumbs.cancel_pending()
         self.view.loader.clear()
-        self.edit.shutdown()
+        if self._edit is not None:
+            self._edit.shutdown()
         ev.accept()

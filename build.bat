@@ -9,7 +9,7 @@ copy /y packaging\unregister_open_with.ps1 dist\PhotoViewer\ >nul
 copy /y packaging\Register-OpenWith.bat dist\PhotoViewer\ >nul
 copy /y packaging\Unregister-OpenWith.bat dist\PhotoViewer\ >nul
 echo.
-echo Portable app: dist\PhotoViewer\PhotoViewer.exe
+echo Portable app: dist\PhotoViewer\  (PhotoViewer.exe = manager/editor, QuickView.exe = fast viewer)
 
 set "ISCC="
 if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
@@ -17,7 +17,7 @@ if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86
 if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if not defined ISCC goto :noinno
 "%ISCC%" /Q packaging\installer.iss || goto :error
-echo Installer:    dist\installer\PhotoViewer-Setup-1.0.0.exe
+echo Installer:    dist\installer\  (PhotoViewer-Setup-^<version^>.exe)
 goto :eof
 
 :noinno

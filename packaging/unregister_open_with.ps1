@@ -6,6 +6,7 @@ $C = 'HKCU:\Software\Classes'
 
 Remove-Item -LiteralPath "$C\$progId" -Recurse -Force
 Remove-Item -LiteralPath "$C\Applications\PhotoViewer.exe" -Recurse -Force
+Remove-Item -LiteralPath "$C\Applications\QuickView.exe" -Recurse -Force
 foreach ($e in $exts) {
     Remove-ItemProperty -LiteralPath "$C\$e\OpenWithProgids" -Name $progId -Force
 }

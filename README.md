@@ -2,9 +2,23 @@
 
 仿 ACDSee 操作方式的快速看圖、相片管理與影像編輯工具（Python + PySide6 + NumPy + Pillow）。
 
-一個視窗、三種模式，右上角切換：**管理 / 檢視 / 編輯**。
+由兩個程式組成，共用同一個程式資料夾：
 
-## 安裝與啟動
+| 程式 | 用途 | 啟動時間 |
+|---|---|---|
+| **QuickView.exe**（快速看圖） | 在檔案總管雙擊圖片時開啟。只載入最精簡的 Qt 繪圖模組，←/→ 立即換圖 | 約 0.5 秒 |
+| **PhotoViewer.exe**（管理編輯） | 一個視窗、三種模式，右上角切換：**管理 / 檢視 / 編輯** | 約 1 秒 |
+
+在快速看圖中**雙擊影像或按 Enter** → 開啟管理模式並選取這張；**按 E** → 直接進入編輯。
+
+## 快速看圖（QuickView）
+
+- **← / →**、滾輪、空白鍵、PgUp/PgDn、Home/End：上一張 / 下一張（前後幾張已預先載入）
+- **雙擊 / Enter**：開啟管理程式；**E**：開啟編輯
+- Ctrl+滾輪、+ / -：縮放（放大超過螢幕大小時才載入原始解析度）；`0` 符合視窗、`1` 實際大小；拖曳平移
+- F / F11 全螢幕、I 顯示資訊、`[` / `]` 旋轉（JPEG 無損）、Delete 移到資源回收筒、Ctrl+C 複製、Ctrl+0~5 評等、Esc 關閉
+
+## 安裝與啟動（原始碼）
 
 ```bash
 python -m pip install -r requirements.txt
@@ -14,6 +28,11 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
+```bash
+python quickview.py "C:\path\to\photo.jpg"
+```
+
+- `main.py` 另接受 `--manage <圖片>`（開管理並選取）與 `--edit <圖片>`（直接編輯），快速看圖就是用這兩個參數交接。
 - 直接雙擊 `PhotoViewer.bat` 也可以啟動（不會出現命令列視窗）。
 - 把**圖片**拖到 `PhotoViewer.bat` 上 → 直接進入檢視模式，←/→ 瀏覽同資料夾。
 - 把**資料夾**拖到 `PhotoViewer.bat` 上 → 在管理模式開啟該資料夾。
@@ -21,19 +40,20 @@ python main.py
 
 ## 安裝檔（建議）
 
-`dist\installer\PhotoViewer-Setup-1.0.0.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
+`dist\installer\PhotoViewer-Setup-1.1.0.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
 
 - 安裝到 `%LOCALAPPDATA%\Programs\PhotoViewer`（即 `C:\Users\<你的帳號>\AppData\Local\Programs\PhotoViewer`），可在精靈中更改
 - 建立開始功能表捷徑；可選建立桌面捷徑
-- 可選「加入圖片的開啟檔案清單」（預設勾選）
+- 可選「加入圖片的開啟檔案清單」（預設勾選）—— 雙擊圖片會用快速看圖開啟，開始功能表捷徑則開啟管理程式
 - 出現在「設定 > 應用程式」中，可從那裡解除安裝；解除安裝會移除程式、捷徑與登錄項目，但保留你的設定、評等與縮圖快取（`%APPDATA%\PhotoViewer`、`%LOCALAPPDATA%\PhotoViewer`）
 - 安裝新版本時直接執行新的安裝檔即可（會自動關閉執行中的 Photo Viewer）
 
 ## 免安裝版與手動設定「開啟方式」
 
-免安裝版在 `dist\PhotoViewer\`（整個資料夾一起用，約 93 MB）：
+免安裝版在 `dist\PhotoViewer\`（整個資料夾一起用，約 96 MB）：
 
-- `PhotoViewer.exe` —— 主程式，可直接執行或把圖片拖上去
+- `QuickView.exe` —— 快速看圖，把圖片拖上去即可
+- `PhotoViewer.exe` —— 管理編輯主程式
 - `Register-OpenWith.bat` —— 把 Photo Viewer 加入圖片的「開啟檔案」清單、開始功能表捷徑，並列入「設定 > 應用程式 > 預設應用程式」（只寫入目前使用者的設定）
 - `Unregister-OpenWith.bat` —— 完整移除上述註冊
 
@@ -107,7 +127,10 @@ build.bat
 
 ```
 main.py            進入點
-pv/mainwindow.py   主視窗與 管理/檢視/編輯 模式切換
+quickview.py       快速看圖進入點（QuickView.exe）
+pv/quick.py        快速看圖視窗（只用 QtCore/QtGui，背景預先載入）
+pv/startup.py      兩個程式共用的啟動工具（錯誤記錄、中文按鈕、互相啟動）
+pv/mainwindow.py   主視窗與 管理/檢視/編輯 模式切換（編輯器延遲載入）
 pv/viewer.py       檢視模式（預先載入、縮圖列、全螢幕、投影片）
 pv/manager.py      管理模式（資料夾樹、縮圖、預覽、屬性、檔案操作）
 pv/editor.py       編輯模式（調整面板、背景算圖、復原、儲存）

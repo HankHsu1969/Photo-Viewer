@@ -3,8 +3,9 @@
 ; Per-user install (no admin): %LOCALAPPDATA%\Programs\PhotoViewer
 
 #define AppName "Photo Viewer 看圖"
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 #define AppExe "PhotoViewer.exe"
+#define QuickExe "QuickView.exe"
 #define Root ".."
 
 [Setup]
@@ -48,29 +49,31 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "快速
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
+; Double-clicked images open in the lightweight QuickView.exe
 ; ProgID
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: ""; ValueData: "Photo Viewer 影像"; Flags: uninsdeletekey; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: "FriendlyTypeName"; ValueData: "Photo Viewer 影像"; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"",0"; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"",0"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell"; ValueType: string; ValueName: ""; ValueData: "open"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell\open"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""%1"""; Tasks: fileassoc
-; Application entry shown in the Open with list
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"",0"; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""%1"""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".jpg"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".jpeg"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".jpe"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".jfif"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".png"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".bmp"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".gif"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".webp"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".tif"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".tiff"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".ico"; ValueData: ""; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".tga"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"" ""%1"""; Tasks: fileassoc
+; Application entry shown in the Open with list (1.0 registered PhotoViewer.exe here; remove it)
+Root: HKA; Subkey: "Software\Classes\Applications\PhotoViewer.exe"; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"",0"; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"" ""%1"""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".jpg"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".jpeg"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".jpe"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".jfif"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".png"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".bmp"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".gif"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".webp"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".tif"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".tiff"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".ico"; ValueData: ""; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".tga"; ValueData: ""; Tasks: fileassoc
 ; Add to each extension's "Open with" list (other apps' entries are left alone)
 Root: HKA; Subkey: "Software\Classes\.jpg\OpenWithProgids"; ValueType: string; ValueName: "PhotoViewer.Image"; ValueData: ""; Flags: uninsdeletevalue; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\.jpeg\OpenWithProgids"; ValueType: string; ValueName: "PhotoViewer.Image"; ValueData: ""; Flags: uninsdeletevalue; Tasks: fileassoc
@@ -88,7 +91,7 @@ Root: HKA; Subkey: "Software\Classes\.tga\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\PhotoViewer"; Flags: uninsdeletekeyifempty; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "{#AppName}"; Flags: uninsdeletekey; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "快速看圖、相片管理與影像編輯"; Tasks: fileassoc
-Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\{#AppExe}"",0"; Tasks: fileassoc
+Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\{#QuickExe}"",0"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpg"; ValueData: "PhotoViewer.Image"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpeg"; ValueData: "PhotoViewer.Image"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpe"; ValueData: "PhotoViewer.Image"; Tasks: fileassoc
