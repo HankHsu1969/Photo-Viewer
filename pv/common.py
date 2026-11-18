@@ -14,7 +14,7 @@ from PySide6.QtGui import (QImage, QImageReader, QImageIOHandler, QIcon, QPixmap
                            QFont, QColor, QFontDatabase, QLinearGradient, QPolygonF)
 
 APP_NAME = "PhotoViewer"
-APP_TITLE = "Photo Viewer 看圖"
+APP_TITLE = "Photo Viewer"
 
 IMAGE_EXTS = {'.jpg', '.jpeg', '.jpe', '.jfif', '.png', '.bmp', '.gif', '.webp', '.tif',
               '.tiff', '.ico', '.tga', '.ppm', '.pgm', '.pbm'}

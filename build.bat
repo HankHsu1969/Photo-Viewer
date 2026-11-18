@@ -9,7 +9,7 @@ copy /y packaging\unregister_open_with.ps1 dist\PhotoViewer\ >nul
 copy /y packaging\Register-OpenWith.bat dist\PhotoViewer\ >nul
 copy /y packaging\Unregister-OpenWith.bat dist\PhotoViewer\ >nul
 echo.
-echo Portable app: dist\PhotoViewer\  (PhotoViewer.exe = manager/editor, QuickView.exe = fast viewer)
+echo Portable app: dist\PhotoViewer\  (PhotoViewer.exe = manager/editor, QuickViewer.exe = Quick Viewer)
 
 set "ISCC="
 if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"

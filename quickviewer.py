@@ -1,9 +1,9 @@
-"""Photo Viewer QuickView - fast, lightweight image viewer (entry point for QuickView.exe).
+"""Quick Viewer - fast, lightweight image viewer (entry point for QuickViewer.exe).
 
 Usage:
-    QuickView.exe <image file>     view it; ←/→ browse the folder; double-click / Enter opens the manager
-    QuickView.exe <folder>         view the first image of the folder
-    QuickView.exe                  starts the full manager instead
+    QuickViewer.exe <image file>   view it; ←/→ browse the folder; double-click / Enter opens Photo Viewer
+    QuickViewer.exe <folder>       view the first image of the folder
+    QuickViewer.exe                starts Photo Viewer instead
 """
 import os
 import sys
@@ -14,8 +14,8 @@ def main():
     if here not in sys.path:
         sys.path.insert(0, here)
     from pv import startup
-    startup.install_crash_log(lambda msg: startup.message_box(msg, 'Photo Viewer 錯誤'))
-    startup.set_app_id('PhotoViewer.QuickView')
+    startup.install_crash_log(lambda msg: startup.message_box(msg, 'Quick Viewer 錯誤'))
+    startup.set_app_id('PhotoViewer.QuickViewer')
 
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     target = os.path.abspath(args[0].strip('"')) if args else None
