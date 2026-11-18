@@ -3,7 +3,7 @@
 #
 # Produces one folder with two executables sharing the same libraries:
 #   PhotoViewer.exe  full manager / viewer / editor
-#   QuickView.exe    lightweight fast viewer used for double-clicked images (QtGui only)
+#   QuickViewer.exe  Quick Viewer: lightweight fast viewer for double-clicked images (QtGui only)
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
@@ -19,7 +19,7 @@ full = Analysis(
     noarchive=False,
 )
 quick = Analysis(
-    [os.path.join(ROOT, 'quickview.py')],
+    [os.path.join(ROOT, 'quickviewer.py')],
     pathex=[ROOT],
     excludes=COMMON_EXCLUDES + ['numpy', 'PySide6.QtWidgets'],
     noarchive=False,
@@ -56,7 +56,7 @@ quick_exe = EXE(
     quick.scripts,
     [],
     exclude_binaries=True,
-    name='QuickView',
+    name='QuickViewer',
     console=False,
     icon=ICON,
     version=os.path.join(SPECPATH, 'version_info_quick.txt'),

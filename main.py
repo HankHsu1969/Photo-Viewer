@@ -1,11 +1,11 @@
-"""Photo Viewer 看圖 - full manager / viewer / editor (entry point for PhotoViewer.exe).
+"""Photo Viewer - photo manager / viewer / editor (entry point for PhotoViewer.exe).
 
 Usage:
     python main.py                       open the manager at the last folder
     python main.py <image file>          open the image in view mode (←/→ to browse the folder)
     python main.py <folder>              open the manager at that folder
-    python main.py --manage <image>      open the manager with that image selected (used by QuickView)
-    python main.py --edit <image>        open that image in the editor (used by QuickView)
+    python main.py --manage <image>      open the manager with that image selected (used by Quick Viewer)
+    python main.py --edit <image>        open that image in the editor (used by Quick Viewer)
 """
 import os
 import sys

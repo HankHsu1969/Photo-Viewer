@@ -1,4 +1,4 @@
-"""QuickView: a lightweight, fast image viewer.
+"""Quick Viewer: a lightweight, fast image viewer.
 
 Only QtCore / QtGui are used (no QtWidgets, numpy or Pillow at startup), images are decoded at
 screen size, and neighbours are prefetched so ←/→ is instant. Double-click / Enter hands the
@@ -17,7 +17,7 @@ from . import startup
 from .common import (read_qimage, oriented_size, list_images, norm, human_size, fmt_time, app_icon,
                      Settings, RatingDB, rotate_file, move_to_trash)
 
-TITLE = 'Photo Viewer 快速看圖'
+TITLE = 'Quick Viewer'
 ZOOM_STEPS = [0.02, 0.05, 0.08, 0.1, 0.125, 0.167, 0.25, 0.333, 0.5, 0.667, 0.75, 1.0,
               1.25, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0, 24.0, 32.0]
 BG = QColor(24, 24, 26)
@@ -423,7 +423,7 @@ class QuickWindow(QRasterWindow):
             r = self.ratings().get(path)
             if r:
                 lines.append('★' * r)
-            lines.append('雙擊／Enter：管理　E：編輯　I：關閉資訊')
+            lines.append('雙擊／Enter：Photo Viewer 管理　E：編輯　I：關閉資訊')
             return lines
         return [self._flash] if self._flash else []
 
@@ -468,7 +468,7 @@ class QuickWindow(QRasterWindow):
         try:
             startup.launch_full_app(f'--{mode}', path) if path else startup.launch_full_app()
         except OSError as e:
-            startup.message_box(f'無法啟動管理程式：\n{e}', hwnd=int(self.winId()))
+            startup.message_box(f'無法啟動 Photo Viewer：\n{e}', hwnd=int(self.winId()))
             return
         self.close()
 

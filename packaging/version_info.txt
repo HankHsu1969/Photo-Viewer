@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 1, 0, 0),
-    prodvers=(1, 1, 0, 0),
+    filevers=(1, 1, 1, 0),
+    prodvers=(1, 1, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -14,12 +14,12 @@ VSVersionInfo(
       StringTable(
         '040404b0',
         [StringStruct('CompanyName', 'Photo Viewer'),
-         StringStruct('FileDescription', 'Photo Viewer 看圖'),
-         StringStruct('FileVersion', '1.1.0.0'),
+         StringStruct('FileDescription', 'Photo Viewer'),
+         StringStruct('FileVersion', '1.1.1.0'),
          StringStruct('InternalName', 'PhotoViewer'),
          StringStruct('OriginalFilename', 'PhotoViewer.exe'),
-         StringStruct('ProductName', 'Photo Viewer 看圖'),
-         StringStruct('ProductVersion', '1.1.0.0')])
+         StringStruct('ProductName', 'Photo Viewer'),
+         StringStruct('ProductVersion', '1.1.1.0')])
     ]),
     VarFileInfo([VarStruct('Translation', [0x0404, 1200])])
   ]

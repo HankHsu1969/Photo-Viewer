@@ -2,10 +2,11 @@
 ;   ISCC packaging\installer.iss
 ; Per-user install (no admin): %LOCALAPPDATA%\Programs\PhotoViewer
 
-#define AppName "Photo Viewer 看圖"
-#define AppVersion "1.1.0"
+#define AppName "Photo Viewer"
+#define AppVersion "1.1.1"
 #define AppExe "PhotoViewer.exe"
-#define QuickExe "QuickView.exe"
+#define QuickExe "QuickViewer.exe"
+#define QuickName "Quick Viewer"
 #define Root ".."
 
 [Setup]
@@ -14,7 +15,7 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher=Photo Viewer
-AppComments=快速看圖、相片管理與影像編輯
+AppComments=相片管理與影像編輯；雙擊圖片以 Quick Viewer 快速看圖
 PrivilegesRequired=lowest
 DefaultDirName={autopf}\PhotoViewer
 DisableProgramGroupPage=yes
@@ -38,28 +39,36 @@ VersionInfoDescription={#AppName} 安裝程式
 VersionInfoProductName={#AppName}
 
 [Tasks]
-Name: "fileassoc"; Description: "加入圖片的「開啟檔案」清單（JPG、PNG、GIF、WEBP、TIFF…）"; GroupDescription: "整合："
+Name: "fileassoc"; Description: "雙擊圖片用 Quick Viewer 開啟：加入「開啟檔案」清單（JPG、PNG、GIF、WEBP、TIFF…）"; GroupDescription: "整合："
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
 Source: "{#Root}\dist\PhotoViewer\*"; DestDir: "{app}"; Excludes: "Register-OpenWith.bat,Unregister-OpenWith.bat,register_open_with.ps1,unregister_open_with.ps1"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; renamed in 1.1.1: old Quick Viewer exe and the old "Photo Viewer 看圖" shortcuts
+Type: files; Name: "{app}\QuickView.exe"
+Type: files; Name: "{autoprograms}\Photo Viewer 看圖.lnk"
+Type: files; Name: "{autodesktop}\Photo Viewer 看圖.lnk"
+
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "快速看圖、相片管理與影像編輯"
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "相片管理與影像編輯"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
-; Double-clicked images open in the lightweight QuickView.exe
+; Double-clicked images open in the lightweight Quick Viewer (QuickViewer.exe)
 ; ProgID
-Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: ""; ValueData: "Photo Viewer 影像"; Flags: uninsdeletekey; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: "FriendlyTypeName"; ValueData: "Photo Viewer 影像"; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: ""; ValueData: "Quick Viewer 影像"; Flags: uninsdeletekey; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: "FriendlyTypeName"; ValueData: "Quick Viewer 影像"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"",0"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell"; ValueType: string; ValueName: ""; ValueData: "open"; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell\open"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell\open"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#QuickName}"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"" ""%1"""; Tasks: fileassoc
-; Application entry shown in the Open with list (1.0 registered PhotoViewer.exe here; remove it)
-Root: HKA; Subkey: "Software\Classes\Applications\PhotoViewer.exe"; Flags: deletekey
-Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey; Tasks: fileassoc
+; Application entry shown in the Open with list. 1.0 registered PhotoViewer.exe for images: replace that
+; with NoOpenWith so Windows never offers (or falls back to) the full program for opening files.
+Root: HKA; Subkey: "Software\Classes\Applications\PhotoViewer.exe"; ValueType: string; ValueName: "NoOpenWith"; ValueData: ""; Flags: deletekey uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Applications\QuickView.exe"; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#QuickName}"; Flags: uninsdeletekey; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"",0"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"" ""%1"""; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\Applications\{#QuickExe}\SupportedTypes"; ValueType: string; ValueName: ".jpg"; ValueData: ""; Tasks: fileassoc
@@ -89,8 +98,8 @@ Root: HKA; Subkey: "Software\Classes\.ico\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\.tga\OpenWithProgids"; ValueType: string; ValueName: "PhotoViewer.Image"; ValueData: ""; Flags: uninsdeletevalue; Tasks: fileassoc
 ; Capabilities: list under Settings > Apps > Default apps
 Root: HKA; Subkey: "Software\PhotoViewer"; Flags: uninsdeletekeyifempty; Tasks: fileassoc
-Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "{#AppName}"; Flags: uninsdeletekey; Tasks: fileassoc
-Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "快速看圖、相片管理與影像編輯"; Tasks: fileassoc
+Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "{#QuickName}"; Flags: uninsdeletekey; Tasks: fileassoc
+Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "快速看圖；雙擊開啟 Photo Viewer 管理與修圖"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\{#QuickExe}"",0"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpg"; ValueData: "PhotoViewer.Image"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpeg"; ValueData: "PhotoViewer.Image"; Tasks: fileassoc

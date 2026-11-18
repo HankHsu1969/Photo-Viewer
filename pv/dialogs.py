@@ -350,5 +350,5 @@ def show_shortcuts(parent):
 
 def show_about(parent):
     QMessageBox.about(parent, '關於', f'<h3>{APP_TITLE}</h3><p>版本 {__version__}</p>'
-                      '<p>仿 ACDSee 操作方式的快速看圖、相片管理與影像編輯工具。</p>'
+                      '<p>仿 ACDSee 操作方式的相片管理與影像編輯工具；雙擊圖片則由 Quick Viewer 快速開啟。</p>'
                       '<p>Python · PySide6 (Qt) · NumPy · Pillow</p>')

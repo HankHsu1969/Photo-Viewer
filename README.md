@@ -1,4 +1,4 @@
-# Photo Viewer 看圖
+# Photo Viewer 與 Quick Viewer
 
 仿 ACDSee 操作方式的快速看圖、相片管理與影像編輯工具（Python + PySide6 + NumPy + Pillow）。
 
@@ -6,15 +6,15 @@
 
 | 程式 | 用途 | 啟動時間 |
 |---|---|---|
-| **QuickView.exe**（快速看圖） | 在檔案總管雙擊圖片時開啟。只載入最精簡的 Qt 繪圖模組，←/→ 立即換圖 | 約 0.5 秒 |
-| **PhotoViewer.exe**（管理編輯） | 一個視窗、三種模式，右上角切換：**管理 / 檢視 / 編輯** | 約 1 秒 |
+| **Quick Viewer**（`QuickViewer.exe`） | 快速看圖：在檔案總管雙擊圖片時開啟。只載入最精簡的 Qt 繪圖模組，←/→ 立即換圖 | 約 0.5 秒 |
+| **Photo Viewer**（`PhotoViewer.exe`） | 管理與修圖：一個視窗、三種模式，右上角切換：**管理 / 檢視 / 編輯** | 約 1 秒 |
 
-在快速看圖中**雙擊影像或按 Enter** → 開啟管理模式並選取這張；**按 E** → 直接進入編輯。
+在 Quick Viewer 中**雙擊影像或按 Enter** → 開啟 Photo Viewer 的管理模式並選取這張；**按 E** → 直接進入編輯。
 
-## 快速看圖（QuickView）
+## Quick Viewer（快速看圖）
 
 - **← / →**、滾輪、空白鍵、PgUp/PgDn、Home/End：上一張 / 下一張（前後幾張已預先載入）
-- **雙擊 / Enter**：開啟管理程式；**E**：開啟編輯
+- **雙擊 / Enter**：開啟 Photo Viewer 管理；**E**：開啟 Photo Viewer 編輯
 - Ctrl+滾輪、+ / -：縮放（放大超過螢幕大小時才載入原始解析度）；`0` 符合視窗、`1` 實際大小；拖曳平移
 - F / F11 全螢幕、I 顯示資訊、`[` / `]` 旋轉（JPEG 無損）、Delete 移到資源回收筒、Ctrl+C 複製、Ctrl+0~5 評等、Esc 關閉
 
@@ -29,10 +29,10 @@ python main.py
 ```
 
 ```bash
-python quickview.py "C:\path\to\photo.jpg"
+python quickviewer.py "C:\path\to\photo.jpg"
 ```
 
-- `main.py` 另接受 `--manage <圖片>`（開管理並選取）與 `--edit <圖片>`（直接編輯），快速看圖就是用這兩個參數交接。
+- `main.py` 另接受 `--manage <圖片>`（開管理並選取）與 `--edit <圖片>`（直接編輯），Quick Viewer 就是用這兩個參數交接給 Photo Viewer。
 - 直接雙擊 `PhotoViewer.bat` 也可以啟動（不會出現命令列視窗）。
 - 把**圖片**拖到 `PhotoViewer.bat` 上 → 直接進入檢視模式，←/→ 瀏覽同資料夾。
 - 把**資料夾**拖到 `PhotoViewer.bat` 上 → 在管理模式開啟該資料夾。
@@ -40,11 +40,11 @@ python quickview.py "C:\path\to\photo.jpg"
 
 ## 安裝檔（建議）
 
-`dist\installer\PhotoViewer-Setup-1.1.0.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
+`dist\installer\PhotoViewer-Setup-1.1.1.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
 
 - 安裝到 `%LOCALAPPDATA%\Programs\PhotoViewer`（即 `C:\Users\<你的帳號>\AppData\Local\Programs\PhotoViewer`），可在精靈中更改
 - 建立開始功能表捷徑；可選建立桌面捷徑
-- 可選「加入圖片的開啟檔案清單」（預設勾選）—— 雙擊圖片會用快速看圖開啟，開始功能表捷徑則開啟管理程式
+- 可選「加入圖片的開啟檔案清單」（預設勾選）—— 雙擊圖片會用 Quick Viewer 開啟，開始功能表的「Photo Viewer」捷徑則開啟管理與修圖程式
 - 出現在「設定 > 應用程式」中，可從那裡解除安裝；解除安裝會移除程式、捷徑與登錄項目，但保留你的設定、評等與縮圖快取（`%APPDATA%\PhotoViewer`、`%LOCALAPPDATA%\PhotoViewer`）
 - 安裝新版本時直接執行新的安裝檔即可（會自動關閉執行中的 Photo Viewer）
 
@@ -52,12 +52,12 @@ python quickview.py "C:\path\to\photo.jpg"
 
 免安裝版在 `dist\PhotoViewer\`（整個資料夾一起用，約 96 MB）：
 
-- `QuickView.exe` —— 快速看圖，把圖片拖上去即可
-- `PhotoViewer.exe` —— 管理編輯主程式
-- `Register-OpenWith.bat` —— 把 Photo Viewer 加入圖片的「開啟檔案」清單、開始功能表捷徑，並列入「設定 > 應用程式 > 預設應用程式」（只寫入目前使用者的設定）
+- `QuickViewer.exe` —— Quick Viewer 快速看圖，把圖片拖上去即可
+- `PhotoViewer.exe` —— Photo Viewer 管理與修圖
+- `Register-OpenWith.bat` —— 把 Quick Viewer 加入圖片的「開啟檔案」清單、開始功能表捷徑，並列入「設定 > 應用程式 > 預設應用程式」（只寫入目前使用者的設定）
 - `Unregister-OpenWith.bat` —— 完整移除上述註冊
 
-Windows 不允許程式自行設為預設，第一次請手動指定：對任一張圖片按右鍵 →「開啟檔案」→「選擇其他應用程式」→ **Photo Viewer 看圖** → 「一律使用」。之後在檔案總管雙擊圖片就會直接用它開啟。
+Windows 不允許程式自行設為預設，第一次請手動指定：對任一張圖片按右鍵 →「開啟檔案」→「選擇其他應用程式」→ **Quick Viewer** → 「一律使用」。之後在檔案總管雙擊圖片就會直接用它開啟。
 
 若搬移 `dist\PhotoViewer` 資料夾，請在新位置重新執行 `Register-OpenWith.bat`。
 
@@ -75,7 +75,7 @@ winget install JRSoftware.InnoSetup
 build.bat
 ```
 
-## 檢視模式（快速看圖）
+## Photo Viewer：檢視模式
 
 - **← / →** 上一張 / 下一張（也可用滑鼠滾輪、空白鍵、PgUp/PgDn、Home/End）
 - **雙擊影像**（或 Enter / Esc）→ 開啟管理介面，並自動選取目前這張
@@ -86,7 +86,7 @@ build.bat
 - Delete 移到資源回收筒、Ctrl+C 複製影像、Ctrl+0~5 評等
 - 支援 EXIF 自動轉正、GIF 動畫、JPG/PNG/WEBP/TIFF/BMP/GIF/ICO/TGA
 
-## 管理模式（圖片管理介面）
+## Photo Viewer：管理模式
 
 - 左：快速存取（桌面/圖片/下載/文件，Ctrl+D 加入我的最愛）＋資料夾樹
 - 中：縮圖瀏覽（背景多執行緒產生、磁碟快取、Ctrl+滾輪調整大小、可拖曳檔案到其他程式）
@@ -96,7 +96,7 @@ build.bat
   批次重新命名、批次調整大小／轉檔、複製路徑、在檔案總管中顯示
 - 資料夾內容變動時自動重新整理
 
-## 編輯模式（影像編輯）
+## Photo Viewer：編輯模式（修圖）
 
 在縮圖上按右鍵 →「編輯」（或 Ctrl+E）。所有調整皆為**非破壞性**，即時預覽，儲存時才以完整解析度套用。
 
@@ -127,8 +127,8 @@ build.bat
 
 ```
 main.py            進入點
-quickview.py       快速看圖進入點（QuickView.exe）
-pv/quick.py        快速看圖視窗（只用 QtCore/QtGui，背景預先載入）
+quickviewer.py     Quick Viewer 進入點（QuickViewer.exe）
+pv/quick.py        Quick Viewer 視窗（只用 QtCore/QtGui，背景預先載入）
 pv/startup.py      兩個程式共用的啟動工具（錯誤記錄、中文按鈕、互相啟動）
 pv/mainwindow.py   主視窗與 管理/檢視/編輯 模式切換（編輯器延遲載入）
 pv/viewer.py       檢視模式（預先載入、縮圖列、全螢幕、投影片）
