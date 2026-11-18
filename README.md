@@ -19,9 +19,19 @@ python main.py
 - 把**資料夾**拖到 `PhotoViewer.bat` 上 → 在管理模式開啟該資料夾。
 - 不帶參數 → 開啟上次瀏覽的資料夾（第一次為「圖片」資料夾）。
 
-## 打包成 .exe 與設定「開啟方式」
+## 安裝檔（建議）
 
-已打包好的程式在 `dist\PhotoViewer\`（整個資料夾一起用，約 93 MB）：
+`dist\installer\PhotoViewer-Setup-1.0.0.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
+
+- 安裝到 `%LOCALAPPDATA%\Programs\PhotoViewer`（即 `C:\Users\<你的帳號>\AppData\Local\Programs\PhotoViewer`），可在精靈中更改
+- 建立開始功能表捷徑；可選建立桌面捷徑
+- 可選「加入圖片的開啟檔案清單」（預設勾選）
+- 出現在「設定 > 應用程式」中，可從那裡解除安裝；解除安裝會移除程式、捷徑與登錄項目，但保留你的設定、評等與縮圖快取（`%APPDATA%\PhotoViewer`、`%LOCALAPPDATA%\PhotoViewer`）
+- 安裝新版本時直接執行新的安裝檔即可（會自動關閉執行中的 Photo Viewer）
+
+## 免安裝版與手動設定「開啟方式」
+
+免安裝版在 `dist\PhotoViewer\`（整個資料夾一起用，約 93 MB）：
 
 - `PhotoViewer.exe` —— 主程式，可直接執行或把圖片拖上去
 - `Register-OpenWith.bat` —— 把 Photo Viewer 加入圖片的「開啟檔案」清單、開始功能表捷徑，並列入「設定 > 應用程式 > 預設應用程式」（只寫入目前使用者的設定）
@@ -31,10 +41,14 @@ Windows 不允許程式自行設為預設，第一次請手動指定：對任一
 
 若搬移 `dist\PhotoViewer` 資料夾，請在新位置重新執行 `Register-OpenWith.bat`。
 
-重新打包（修改程式後）：
+重新打包（修改程式後）—— 需要 PyInstaller；若已安裝 Inno Setup，會一併產生安裝檔：
 
 ```bash
 python -m pip install pyinstaller
+```
+
+```bash
+winget install JRSoftware.InnoSetup
 ```
 
 ```bash
