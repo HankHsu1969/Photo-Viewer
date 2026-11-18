@@ -2,8 +2,10 @@
 # Undo with unregister_open_with.ps1. Windows does not let programs set themselves as the default app;
 # pick it once via right-click > Open with > Choose another app > Photo Viewer > Always.
 $ErrorActionPreference = 'Stop'
-$exe = Join-Path $PSScriptRoot 'PhotoViewer.exe'
-if (-not (Test-Path $exe)) { throw "找不到 $exe" }
+# Images open in the lightweight QuickView.exe; double-click there opens the full PhotoViewer.exe.
+$full = Join-Path $PSScriptRoot 'PhotoViewer.exe'
+$exe = Join-Path $PSScriptRoot 'QuickView.exe'
+foreach ($f in @($full, $exe)) { if (-not (Test-Path $f)) { throw "找不到 $f" } }
 
 $progId = 'PhotoViewer.Image'
 $appName = 'Photo Viewer 看圖'
@@ -32,8 +34,9 @@ Set-Default "$C\$progId\shell" 'open'
 Set-Str "$C\$progId\shell\open" 'FriendlyAppName' $appName
 Set-Default "$C\$progId\shell\open\command" $cmd
 
-# Application entry (name/icon shown in the Open with list)
-$app = "$C\Applications\PhotoViewer.exe"
+# Application entry (name/icon shown in the Open with list); drop the 1.0 entry that pointed at PhotoViewer.exe
+if (Test-Path -LiteralPath "$C\Applications\PhotoViewer.exe") { Remove-Item -LiteralPath "$C\Applications\PhotoViewer.exe" -Recurse -Force }
+$app = "$C\Applications\QuickView.exe"
 Set-Str $app 'FriendlyAppName' $appName
 Set-Default "$app\DefaultIcon" $icon
 Set-Default "$app\shell\open\command" $cmd
@@ -54,9 +57,9 @@ Set-Str 'HKCU:\Software\RegisteredApplications' 'PhotoViewer' 'Software\PhotoVie
 $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Photo Viewer 看圖.lnk'
 $sh = New-Object -ComObject WScript.Shell
 $s = $sh.CreateShortcut($lnk)
-$s.TargetPath = $exe
+$s.TargetPath = $full
 $s.WorkingDirectory = $PSScriptRoot
-$s.IconLocation = "$exe,0"
+$s.IconLocation = "$full,0"
 $s.Description = '快速看圖、相片管理與影像編輯'
 $s.Save()
 
