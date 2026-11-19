@@ -68,6 +68,141 @@ class PreviewPane(QWidget):
         p.drawImage(target, self._img)
 
 
+# --------------------------------------------------------------------------- drag & drop targets
+def _drop_pos(e):
+    return e.position().toPoint()
+
+
+class ThumbListView(QListView):
+    """Thumbnail grid: drag files out, drop onto a folder item (or, from other apps, onto the grid)."""
+
+    def __init__(self, page):
+        super().__init__()
+        self.page = page
+
+    def _dest(self, e):
+        idx = self.indexAt(_drop_pos(e))
+        if idx.isValid():
+            ent = self.model().entries[idx.row()]
+            if ent.is_dir:
+                return ent.path
+        # dropping on the grid itself (not a folder) only makes sense for files coming from elsewhere
+        return self.page.folder if e.source() is not self else None
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dragMoveEvent(self, e):
+        super().dragMoveEvent(e)          # drop indicator + auto-scroll
+        act = self.page.drop_action(e, self._dest(e))
+        if act is None:
+            e.ignore()
+        else:
+            e.setDropAction(act)
+            e.accept()
+
+    def dropEvent(self, e):
+        dest = self._dest(e)
+        act = self.page.drop_action(e, dest)
+        self.stopAutoScroll()
+        self.setState(QAbstractItemView.NoState)
+        self.viewport().update()
+        if act is None:
+            e.ignore()
+            return
+        self.page.drop_files(e, dest, act)
+        e.setDropAction(Qt.CopyAction)   # we already did the work; stop the source from "removing" rows
+        e.accept()
+
+
+class FolderTree(QTreeView):
+    """Folder tree that accepts dropped files/folders (move or copy into the folder under the cursor)."""
+
+    def __init__(self, page):
+        super().__init__()
+        self.page = page
+
+    def _dest(self, e):
+        idx = self.indexAt(_drop_pos(e))
+        return self.model().filePath(idx) if idx.isValid() else None
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dragMoveEvent(self, e):
+        super().dragMoveEvent(e)          # highlight row, auto-expand folders, auto-scroll
+        act = self.page.drop_action(e, self._dest(e))
+        if act is None:
+            e.ignore()
+        else:
+            e.setDropAction(act)
+            e.accept()
+
+    def dropEvent(self, e):
+        dest = self._dest(e)
+        act = self.page.drop_action(e, dest)
+        self.stopAutoScroll()
+        self.setState(QAbstractItemView.NoState)
+        self.viewport().update()
+        if act is None:
+            e.ignore()
+            return
+        self.page.drop_files(e, dest, act)
+        e.setDropAction(Qt.CopyAction)
+        e.accept()
+
+
+class QuickList(QListWidget):
+    """Quick-access list: drop files onto an entry to move/copy them there."""
+
+    def __init__(self, page):
+        super().__init__()
+        self.page = page
+        self.setAcceptDrops(True)
+        self.viewport().setAcceptDrops(True)
+
+    def _target(self, e):
+        it = self.itemAt(_drop_pos(e))
+        return it, (it.data(Qt.UserRole) if it is not None else None)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dragMoveEvent(self, e):
+        it, dest = self._target(e)
+        act = self.page.drop_action(e, dest)
+        if act is None:
+            self.clearSelection()
+            e.ignore()
+            return
+        self.setCurrentItem(it)
+        e.setDropAction(act)
+        e.accept()
+
+    def dragLeaveEvent(self, e):
+        self.clearSelection()
+
+    def dropEvent(self, e):
+        it, dest = self._target(e)
+        act = self.page.drop_action(e, dest)
+        self.clearSelection()
+        if act is None:
+            e.ignore()
+            return
+        self.page.drop_files(e, dest, act)
+        e.setDropAction(Qt.CopyAction)
+        e.accept()
+
+
 class ManagePage(QWidget):
     requestView = Signal(list, int)
     requestEdit = Signal(str)
@@ -99,7 +234,7 @@ class ManagePage(QWidget):
         t1 = QLabel('快速存取')
         t1.setObjectName('PanelTitle')
         lv.addWidget(t1)
-        self.quick = QListWidget()
+        self.quick = QuickList(self)
         self.quick.setIconSize(QSize(18, 18))
         self.quick.setMaximumHeight(200)
         self.quick.itemClicked.connect(lambda it: self.navigate(it.data(Qt.UserRole)))
@@ -112,8 +247,16 @@ class ManagePage(QWidget):
         self.fs_model = QFileSystemModel(self)
         self.fs_model.setFilter(QDir.AllDirs | QDir.NoDotAndDotDot | QDir.Drives)
         self.fs_model.setRootPath('')
-        self.tree = QTreeView()
+        # not read-only so folders report "drop enabled" (row highlight while dragging); the actual
+        # move/copy is done by drop_files(), and in-place renaming is disabled below
+        self.fs_model.setReadOnly(False)
+        self.tree = FolderTree(self)
         self.tree.setModel(self.fs_model)
+        self.tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tree.setDragDropMode(QAbstractItemView.DropOnly)
+        self.tree.setAcceptDrops(True)
+        self.tree.viewport().setAcceptDrops(True)
+        self.tree.setDropIndicatorShown(True)
         for c in (1, 2, 3):
             self.tree.hideColumn(c)
         self.tree.setHeaderHidden(True)
@@ -129,7 +272,7 @@ class ManagePage(QWidget):
         self._refresh_quick()
 
         # center: thumbnails
-        self.view = QListView()
+        self.view = ThumbListView(self)
         self.view.setModel(self.model)
         self.view.setItemDelegate(self.delegate)
         self.view.setViewMode(QListView.IconMode)
@@ -142,7 +285,11 @@ class ManagePage(QWidget):
         self.view.setBatchSize(300)
         self.view.setMouseTracking(True)
         self.view.setDragEnabled(True)
-        self.view.setDragDropMode(QAbstractItemView.DragOnly)
+        self.view.setDragDropMode(QAbstractItemView.DragDrop)   # drag out, or drop onto a folder item
+        self.view.setDefaultDropAction(Qt.MoveAction)
+        self.view.setAcceptDrops(True)
+        self.view.viewport().setAcceptDrops(True)
+        self.view.setDropIndicatorShown(True)
         self.view.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.view.verticalScrollBar().setSingleStep(30)
         self.view.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -334,7 +481,7 @@ class ManagePage(QWidget):
         self.search = QLineEdit()
         self.search.setPlaceholderText('搜尋檔名…')
         self.search.setClearButtonEnabled(True)
-        self.search.setFixedWidth(150)
+        self.search.setObjectName('Search')  # width in em (theme)
         self.search.textChanged.connect(lambda _t: self._filter_timer.start())
         tb.addWidget(self.search)
         tb.addSeparator()
@@ -671,6 +818,11 @@ class ManagePage(QWidget):
     def focus_view(self):
         self.view.setFocus()
 
+    def refresh_layout(self):
+        """Re-measure thumbnail cells after the UI font size changed."""
+        self.model.layoutAboutToBeChanged.emit()
+        self.model.layoutChanged.emit()
+
     # ------------------------------------------------------------------ context menu
     def _context_menu(self, pos):
         idx = self.view.indexAt(pos)
@@ -826,39 +978,102 @@ class ManagePage(QWidget):
         if not d:
             return
         self.settings.set('manage/last_target', d)
-        if norm(d) == norm(self.folder):
-            if move:
-                return
+        if norm(d) == norm(self.folder) and move:
+            return
+        self.transfer([e.path for e in ents], d, move)
+
+    def transfer(self, paths, dest, move):
+        """Copy or move files/folders into dest (unique names on clash). Returns how many succeeded."""
+        dest = os.path.abspath(dest)
+        nd = norm(dest)
+        paths = [p for p in paths if os.path.exists(p) and not self._is_self_or_parent(p, nd)]
+        if move:
+            paths = [p for p in paths if norm(os.path.dirname(os.path.abspath(p))) != nd]
+        if not paths:
+            return 0
         prog = None
-        if len(ents) > 8:
-            prog = QProgressDialog('正在處理…', '取消', 0, len(ents), self)
+        if len(paths) > 8:
+            prog = QProgressDialog('正在移動…' if move else '正在複製…', '取消', 0, len(paths), self)
             prog.setWindowModality(Qt.WindowModal)
             prog.setMinimumDuration(300)
-        errors = []
-        for i, e in enumerate(ents):
+        errors, done = [], 0
+        for i, p in enumerate(paths):
             if prog:
                 prog.setValue(i)
                 QApplication.processEvents()
                 if prog.wasCanceled():
                     break
+            name = os.path.basename(p.rstrip('\\/'))
             try:
-                dst = unique_path(d, e.name)
+                dst = unique_path(dest, name)
                 if move:
-                    shutil.move(e.path, dst)
-                    self.ratings.move(e.path, dst)
-                    self.thumbs.invalidate(e.path)
-                    self.fileDeleted.emit(e.path)
-                elif e.is_dir:
-                    shutil.copytree(e.path, dst)
+                    shutil.move(p, dst)
+                    self.ratings.move(p, dst)
+                    self.thumbs.invalidate(p)
+                    self.fileDeleted.emit(p)
+                elif os.path.isdir(p):
+                    shutil.copytree(p, dst)
                 else:
-                    shutil.copy2(e.path, dst)
+                    shutil.copy2(p, dst)
+                done += 1
             except OSError as ex:
-                errors.append(f"{e.name}：{ex}")
+                errors.append(f"{name}：{ex}")
         if prog:
-            prog.setValue(len(ents))
+            prog.setValue(len(paths))
         self.reload(keep_selection=not move)
+        if done:
+            verb = '移動' if move else '複製'
+            self.st_right.setText(f'已{verb} {done} 個項目到「{os.path.basename(dest.rstrip(chr(92) + "/")) or dest}」')
+            QTimer.singleShot(5000, self._update_status)
         if errors:
             QMessageBox.warning(self, '複製／移動', '\n'.join(errors[:15]))
+        return done
+
+    @staticmethod
+    def _is_self_or_parent(path, norm_dest):
+        """True if dropping `path` into the folder `norm_dest` would put a folder inside itself."""
+        if not os.path.isdir(path):
+            return False
+        np_ = norm(path)
+        return norm_dest == np_ or norm_dest.startswith(np_.rstrip('\\/') + os.sep)
+
+    # ------------------------------------------------------------------ drag & drop
+    @staticmethod
+    def _mime_paths(md):
+        return [u.toLocalFile() for u in md.urls() if u.isLocalFile() and u.toLocalFile()]
+
+    def drop_action(self, e, dest):
+        """Qt.MoveAction / Qt.CopyAction for dropping the dragged files into dest, or None if not allowed.
+
+        Like Explorer: same drive = move, other drive = copy; Ctrl forces copy, Shift forces move.
+        Files dragged in from other programs (Explorer...) are always copied.
+        """
+        if not dest or not os.path.isdir(dest):
+            return None
+        key = tuple(self._mime_paths(e.mimeData()))
+        if getattr(self, '_drag_key', None) != key:      # cache per file list: dragMove fires constantly
+            self._drag_key = key
+            self._drag_paths = [p for p in key if os.path.exists(p)]
+        nd = norm(os.path.abspath(dest))
+        movable = [p for p in self._drag_paths
+                   if not self._is_self_or_parent(p, nd) and norm(os.path.dirname(os.path.abspath(p))) != nd]
+        if not movable:
+            return None
+        if e.source() is None:
+            return Qt.CopyAction
+        mods = e.modifiers()
+        if mods & Qt.ControlModifier:
+            return Qt.CopyAction
+        if mods & Qt.ShiftModifier:
+            return Qt.MoveAction
+        drive = os.path.splitdrive(nd)[0]
+        same = all(os.path.splitdrive(norm(p))[0] == drive for p in movable)
+        return Qt.MoveAction if same else Qt.CopyAction
+
+    def drop_files(self, e, dest, action):
+        paths = self._mime_paths(e.mimeData())
+        self._drag_key = None
+        self.transfer(paths, dest, move=(action == Qt.MoveAction))
 
     def _new_folder(self):
         if not self.folder:

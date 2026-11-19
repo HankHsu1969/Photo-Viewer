@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                                QButtonGroup, QStackedWidget, QMenu, QMessageBox)
 
 from .common import APP_TITLE, Settings, RatingDB, app_icon, is_image, norm, glyph_icon, G
-from .dialogs import show_shortcuts, show_about
+from .dialogs import show_shortcuts, show_about, SettingsDialog
 from .manager import ManagePage
 from .thumbs import ThumbCache
 from .viewer import ViewPage
@@ -60,6 +60,10 @@ class MainWindow(QMainWindow):
         a.setShortcut(QKeySequence('F1'))
         a.triggered.connect(lambda: show_shortcuts(self))
         self.help_menu.addAction('關於', lambda: show_about(self))
+        self.settings_menu = QMenu('設定(&S)', self)
+        self.act_settings = self.settings_menu.addAction(glyph_icon(G.SETTINGS), '顯示與字體大小…')
+        self.act_settings.setShortcut(QKeySequence('Ctrl+,'))
+        self.act_settings.triggered.connect(self.open_settings)
         self.act_exit = QAction('結束', self)
         self.act_exit.setShortcut(QKeySequence('Ctrl+Q'))
         self.act_exit.triggered.connect(self.close)
@@ -72,6 +76,7 @@ class MainWindow(QMainWindow):
             except TypeError:
                 pass
 
+        self._scale_icons(self)
         self._start(start_path, start_mode)
 
     @property
@@ -82,6 +87,7 @@ class MainWindow(QMainWindow):
             self.stack.addWidget(self._edit)
             self._edit.finished.connect(self._edit_finished)
             self._edit.saved.connect(self._edit_saved)
+            self._scale_icons(self._edit)
         return self._edit
 
     # ------------------------------------------------------------------ building
@@ -106,6 +112,11 @@ class MainWindow(QMainWindow):
             self.mode_group.addButton(b)
             self.mode_buttons[key] = b
             h.addWidget(b)
+        gear = QPushButton(glyph_icon(G.SETTINGS), '')
+        gear.setToolTip('設定：字體大小（Ctrl+,）')
+        gear.setFocusPolicy(Qt.NoFocus)
+        gear.clicked.connect(self.open_settings)
+        h.addWidget(gear)
         return bar
 
     def _start(self, start_path, start_mode=None):
@@ -143,6 +154,7 @@ class MainWindow(QMainWindow):
         mb.clear()
         for m in page.menus:
             mb.addMenu(m)
+        mb.addMenu(self.settings_menu)
         mb.addMenu(self.help_menu)
         if mode == 'manage':
             QTimer.singleShot(0, self.manage.focus_view)
@@ -237,6 +249,24 @@ class MainWindow(QMainWindow):
         self.thumbs.invalidate(path)
         self.manage.on_external_change(path)
         self.view.on_external_change(path)
+
+    # ------------------------------------------------------------------ settings
+    @staticmethod
+    def _scale_icons(root):
+        from PySide6.QtWidgets import QApplication
+        from .theme import scale_icons
+        scale_icons(root, QApplication.instance().font().pointSizeF())
+
+    def open_settings(self):
+        SettingsDialog(self.settings, self.apply_font_size, self).exec()
+
+    def apply_font_size(self, pt):
+        from PySide6.QtWidgets import QApplication
+        from .theme import set_font_size
+        pt = set_font_size(QApplication.instance(), pt)
+        self._scale_icons(self)          # toolbar / mode-bar / list icons follow the font size
+        self.manage.refresh_layout()
+        self.view.refresh_layout()
 
     # ------------------------------------------------------------------ full screen
     def _set_fullscreen(self, on):

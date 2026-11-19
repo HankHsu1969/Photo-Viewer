@@ -634,6 +634,12 @@ class ViewPage(QWidget):
             return
         super().keyPressEvent(ev)
 
+    def refresh_layout(self):
+        """Re-measure filmstrip cells after the UI font size changed."""
+        self.strip_model.layoutAboutToBeChanged.emit()
+        self.strip_model.layoutChanged.emit()
+        self.canvas.update()
+
     def showEvent(self, ev):
         super().showEvent(ev)
         QTimer.singleShot(0, self._sync_strip)

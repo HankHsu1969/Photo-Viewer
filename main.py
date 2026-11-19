@@ -43,7 +43,9 @@ def main():
     app.setApplicationName('PhotoViewer')
     app.setOrganizationName('PhotoViewer')
     startup.load_qt_translation(app)
-    apply_theme(app)
+    from pv.common import Settings
+    from pv.theme import DEFAULT_FONT_PT
+    apply_theme(app, Settings().get('ui/font_size', DEFAULT_FONT_PT, float))
     mode, path = parse_args(sys.argv[1:])
     win = MainWindow(path, mode)
     win.show()

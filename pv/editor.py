@@ -294,8 +294,7 @@ class EditPage(QWidget):
 
     def _build_panel(self):
         panel = QWidget()
-        panel.setMinimumWidth(340)
-        panel.setMaximumWidth(480)
+        panel.setObjectName('EditPanel')  # min/max width in em, so it widens with the font size
         pv = QVBoxLayout(panel)
         pv.setContentsMargins(0, 0, 0, 0)
         pv.setSpacing(0)
@@ -367,7 +366,7 @@ class EditPage(QWidget):
             self.lv_spins.append(sp)
             r, c = (0, i) if i < 3 else (2, i - 3)
             lb = QLabel(lab)
-            lb.setStyleSheet('color:#9a9aa0; font-size:8.5pt;')
+            lb.setObjectName('SmallLabel')
             g.addWidget(lb, r, c)
             g.addWidget(sp, r + 1, c)
         l.addLayout(g)
@@ -390,7 +389,7 @@ class EditPage(QWidget):
         self.curves_widget.curvesChanged.connect(self._curves_changed)
         l.addWidget(self.curves_widget)
         hint = QLabel('點擊新增控制點並拖曳；右鍵點控制點可刪除')
-        hint.setStyleSheet('color:#8a8a90; font-size:8.5pt;')
+        hint.setObjectName('Hint')
         l.addWidget(hint)
         iv.addWidget(Section('色調曲線', w, False, lambda: self._reset_keys(['curves'])))
 

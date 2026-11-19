@@ -4,6 +4,8 @@ from PySide6.QtGui import QPalette, QColor, QFont
 from PySide6.QtWidgets import QProxyStyle, QStyle, QStyleFactory
 
 ACCENT = '#3794ff'
+DEFAULT_FONT_PT = 9.5
+MIN_FONT_PT, MAX_FONT_PT = 8.0, 18.0
 
 
 class _Style(QProxyStyle):
@@ -14,7 +16,7 @@ class _Style(QProxyStyle):
 
 
 QSS = """
-* { font-family: "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei"; font-size: 9.5pt; }
+* { font-family: "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei"; font-size: @BASE@pt; }
 QWidget { color: #e3e3e3; }
 QMainWindow, QDialog { background: #252527; }
 QToolTip { color: #eeeeee; background: #333336; border: 1px solid #555; padding: 3px; }
@@ -35,10 +37,10 @@ QToolButton:checked { background: #2d5fa8; border-color: #3794ff; }
 QToolButton::menu-indicator { image: none; width: 0; }
 #ModeBar { background: #1d1d20; border-bottom: 1px solid #111113; }
 #ModeBar QPushButton { color: #b8b8bc; background: transparent; border: none; border-radius: 0;
-    padding: 7px 20px; font-size: 10.5pt; border-bottom: 2px solid transparent; }
+    padding: 7px 20px; font-size: @BIG@pt; border-bottom: 2px solid transparent; }
 #ModeBar QPushButton:hover { color: #ffffff; background: #29292d; }
 #ModeBar QPushButton:checked { color: #ffffff; border-bottom: 2px solid #3794ff; background: #26262a; }
-#AppTitle { color: #e6e6e6; font-weight: 600; font-size: 10.5pt; padding-left: 12px; }
+#AppTitle { color: #e6e6e6; font-weight: 600; font-size: @BIG@pt; padding-left: 12px; }
 #StatusBar { background: #1f1f22; border-top: 1px solid #141416; }
 #StatusBar QLabel { color: #a8a8ae; padding: 0 6px; }
 #PanelTitle { color: #9a9aa0; font-weight: 600; padding: 6px 8px 3px 8px; background: transparent; }
@@ -87,11 +89,67 @@ QToolButton#SectionReset { color: #9c9ca2; background: #2f2f33; border: none; bo
 QToolButton#SectionReset:hover { color: white; background: #3a3a3f; }
 QProgressDialog QLabel { padding: 6px; }
 QGroupBox { border: 1px solid #3a3a3f; border-radius: 4px; margin-top: 10px; padding-top: 6px; }
+QLabel#Hint { color: #8a8a90; font-size: @SMALL@pt; }
+QLabel#SmallLabel { color: #9a9aa0; font-size: @SMALL@pt; }
+QDoubleSpinBox#ParamSpin { min-width: 4.6em; max-width: 4.6em; }
+QLineEdit#Search { min-width: 11em; max-width: 11em; }
+QWidget#EditPanel { min-width: 27em; max-width: 42em; }
 QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #b5b5ba; }
 """
 
 
-def apply_theme(app):
+def build_qss(font_pt=DEFAULT_FONT_PT):
+    """Stylesheet with every font size (and em-based width) derived from one base size."""
+    pt = max(MIN_FONT_PT, min(MAX_FONT_PT, float(font_pt)))
+    return (QSS.replace('@BASE@', f'{pt:g}')
+               .replace('@BIG@', f'{round(pt * 1.1, 1):g}')
+               .replace('@SMALL@', f'{round(pt * 0.9, 1):g}'))
+
+
+def set_font_size(app, font_pt):
+    """Change the UI font size of a running app (all widgets restyle immediately)."""
+    pt = max(MIN_FONT_PT, min(MAX_FONT_PT, float(font_pt)))
+    f = QFont(app.font())
+    f.setFamilies(['Segoe UI', 'Microsoft JhengHei UI', 'Microsoft JhengHei'])
+    f.setPointSizeF(pt)
+    app.setFont(f)
+    app.setStyleSheet(build_qss(pt))
+    return pt
+
+
+def icon_scale(font_pt):
+    """Icons grow and shrink with the UI font (1.0 at the default 9.5 pt)."""
+    return max(0.85, float(font_pt) / DEFAULT_FONT_PT)
+
+
+def scale_icons(root, font_pt):
+    """Resize toolbar / button / list icons under `root` to match the font size.
+
+    Each widget's original icon size is remembered (Qt property 'pvBaseIcon') the first time it is
+    seen, so repeated calls always scale from the design size instead of compounding.
+    """
+    from PySide6.QtCore import QSize
+    from PySide6.QtWidgets import (QWidget, QToolBar, QToolButton, QAbstractButton, QListView,
+                                   QTreeView, QListWidget)
+    s = icon_scale(font_pt)
+    for w in [root] + root.findChildren(QWidget):
+        if isinstance(w, QToolButton) and isinstance(w.parentWidget(), QToolBar):
+            continue                      # sized by its toolbar
+        if isinstance(w, QListView) and not isinstance(w, QListWidget) and w.viewMode() == QListView.IconMode:
+            continue                      # thumbnail grids size themselves (thumbnail size slider)
+        if not isinstance(w, (QToolBar, QAbstractButton, QTreeView, QListWidget)):
+            continue
+        base = w.property('pvBaseIcon')
+        if base is None:
+            base = w.iconSize()
+            if base.width() <= 0 or base.height() <= 0:   # "unset" (-1): use the style's small-icon size
+                px = w.style().pixelMetric(QStyle.PixelMetric.PM_SmallIconSize, None, w)
+                base = QSize(px, px)
+            w.setProperty('pvBaseIcon', base)
+        w.setIconSize(QSize(max(8, round(base.width() * s)), max(8, round(base.height() * s))))
+
+
+def apply_theme(app, font_pt=DEFAULT_FONT_PT):
     app.setStyle(_Style(QStyleFactory.create('Fusion')))
     pal = QPalette()
     c = QColor
@@ -112,8 +170,4 @@ def apply_theme(app):
     for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
         pal.setColor(QPalette.Disabled, role, c(110, 110, 115))
     app.setPalette(pal)
-    f = QFont()
-    f.setFamilies(['Segoe UI', 'Microsoft JhengHei UI', 'Microsoft JhengHei'])
-    f.setPointSizeF(9.5)
-    app.setFont(f)
-    app.setStyleSheet(QSS)
+    set_font_size(app, font_pt)

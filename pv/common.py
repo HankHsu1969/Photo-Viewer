@@ -205,6 +205,7 @@ class G:
     COLOR = ''
     PRESET = ''
     PREVIEW = ''
+    SETTINGS = ''
 
 
 _icon_family = None

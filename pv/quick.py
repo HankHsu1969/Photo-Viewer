@@ -123,7 +123,8 @@ class QuickWindow(QRasterWindow):
         self._was_max = False
         self.font_ = QFont()
         self.font_.setFamilies(['Segoe UI', 'Microsoft JhengHei UI', 'Microsoft JhengHei'])
-        self.font_.setPointSizeF(10)
+        # overlay text follows Photo Viewer's 設定 > 字體大小 (default 9.5 pt)
+        self.font_.setPointSizeF(max(8.0, min(19.0, self.settings.get('ui/font_size', 9.5, float) * 1.05)))
 
     # ------------------------------------------------------------------ startup
     def _bound(self):

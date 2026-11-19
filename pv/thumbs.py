@@ -174,8 +174,11 @@ class FolderModel(QAbstractListModel):
 
     def flags(self, index):
         f = super().flags(index)
-        if index.isValid():
-            f |= Qt.ItemIsDragEnabled
+        if not index.isValid():
+            return f | Qt.ItemIsDropEnabled          # dropping on the grid background (from other apps)
+        f |= Qt.ItemIsDragEnabled
+        if index.row() < len(self.entries) and self.entries[index.row()].is_dir:
+            f |= Qt.ItemIsDropEnabled                # folders are drop targets (move / copy into them)
         return f
 
     def set_entries(self, entries: list[Entry]):
@@ -223,6 +226,15 @@ class FolderModel(QAbstractListModel):
     def supportedDragActions(self):
         return Qt.CopyAction | Qt.MoveAction
 
+    def supportedDropActions(self):
+        return Qt.CopyAction | Qt.MoveAction
+
+    def canDropMimeData(self, data, action, row, column, parent):
+        return data.hasUrls()
+
+    def dropMimeData(self, data, action, row, column, parent):
+        return False   # drops are handled by ManagePage.drop_files (via ThumbListView.dropEvent)
+
 
 # --------------------------------------------------------------------------- delegate
 class ThumbDelegate(QStyledItemDelegate):
@@ -234,15 +246,15 @@ class ThumbDelegate(QStyledItemDelegate):
         self.show_names = show_names
         self.pix: OrderedDict = OrderedDict()
         self._folder_pm = {}
-        self._star_font = QFont()
-        self._star_font.setPixelSize(12)
 
     def set_size(self, s: int):
         self.ts = int(s)
         self.pix.clear()
 
     def sizeHint(self, option, index):
-        return QSize(self.ts + 14, self.ts + (32 if self.show_names else 10))
+        # name row height follows the UI font size (Settings > 字體大小)
+        name_h = option.fontMetrics.height() + 12 if self.show_names else 0
+        return QSize(self.ts + 14, self.ts + 10 + name_h)
 
     def _thumb_pm(self, e: Entry, ts: int, dpr: float):
         k = (e.key, ts, dpr)
@@ -315,11 +327,14 @@ class ThumbDelegate(QStyledItemDelegate):
                 p.drawText(tr, Qt.AlignCenter, e.ext.lstrip('.').upper())
             rating = self.ratings.get(e.path) if self.ratings is not None else 0
             if rating:
-                p.setFont(self._star_font)
+                star_font = QFont(opt.font)
+                star_font.setPointSizeF(max(7.0, opt.font.pointSizeF() * 0.95))
+                p.setFont(star_font)
                 txt = '★' * rating
                 fm = p.fontMetrics()
                 bw = fm.horizontalAdvance(txt) + 8
-                br = QRectF(tr.x() + 4, tr.bottom() - 20, bw, 17)
+                bh = fm.height() + 2
+                br = QRectF(tr.x() + 4, tr.bottom() - bh - 3, bw, bh)
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(0, 0, 0, 150))
                 p.drawRoundedRect(br, 4, 4)
@@ -327,7 +342,7 @@ class ThumbDelegate(QStyledItemDelegate):
                 p.drawText(br, Qt.AlignCenter, txt)
         if self.show_names:
             p.setFont(opt.font)
-            tx = QRectF(r.x() + 4, tr.bottom() + 3, r.width() - 8, 20)
+            tx = QRectF(r.x() + 4, tr.bottom() + 3, r.width() - 8, opt.fontMetrics.height() + 4)
             p.setPen(QColor(255, 255, 255) if sel else QColor(205, 205, 210))
             name = opt.fontMetrics.elidedText(e.name, Qt.ElideMiddle, int(tx.width()))
             p.drawText(tx, Qt.AlignHCenter | Qt.AlignTop, name)

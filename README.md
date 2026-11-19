@@ -40,7 +40,7 @@ python quickviewer.py "C:\path\to\photo.jpg"
 
 ## 安裝檔（建議）
 
-`dist\installer\PhotoViewer-Setup-1.1.1.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
+`dist\installer\PhotoViewer-Setup-1.2.0.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
 
 - 安裝到 `%LOCALAPPDATA%\Programs\PhotoViewer`（即 `C:\Users\<你的帳號>\AppData\Local\Programs\PhotoViewer`），可在精靈中更改
 - 建立開始功能表捷徑；可選建立桌面捷徑
@@ -86,6 +86,14 @@ build.bat
 - Delete 移到資源回收筒、Ctrl+C 複製影像、Ctrl+0~5 評等
 - 支援 EXIF 自動轉正、GIF 動畫、JPG/PNG/WEBP/TIFF/BMP/GIF/ICO/TGA
 
+## 設定（字體大小）
+
+在 Photo Viewer 按右上角的**齒輪**，或選單「**設定 > 顯示與字體大小…**」（Ctrl+,）：
+
+- 用滑桿（8～18 pt）或「小／標準／大／特大」按鈕調整整個軟體的字體大小，畫面立即預覽
+- 按「確定」儲存（下次開啟沿用），「取消」恢復原本大小，「還原預設」回到 9.5 pt
+- Quick Viewer 的資訊文字也會套用（下次開啟時）
+
 ## Photo Viewer：管理模式
 
 - 左：快速存取（桌面/圖片/下載/文件，Ctrl+D 加入我的最愛）＋資料夾樹
@@ -94,6 +102,7 @@ build.bat
 - 排序（名稱/日期/大小/類型、遞增遞減）、評等篩選、檔名搜尋
 - 右鍵選單：檢視、**編輯**、旋轉、評等、複製到/移動到、重新命名、刪除、
   批次重新命名、批次調整大小／轉檔、複製路徑、在檔案總管中顯示
+- **拖曳移動／複製**：把縮圖拖到左側資料夾樹、快速存取或縮圖格中的資料夾即可移動；跨磁碟預設為複製，按住 Ctrl 複製、Shift 移動；從檔案總管拖進來的檔案會複製到目前資料夾
 - 資料夾內容變動時自動重新整理
 
 ## Photo Viewer：編輯模式（修圖）

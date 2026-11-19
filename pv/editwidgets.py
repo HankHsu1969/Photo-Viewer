@@ -62,7 +62,7 @@ class ParamSlider(QWidget):
         self.spin.setSingleStep(1.0 / self._f if decimals else 1.0)
         self.spin.setAlignment(Qt.AlignRight)
         self.spin.setKeyboardTracking(False)
-        self.spin.setFixedWidth(60)
+        self.spin.setObjectName('ParamSpin')  # width follows the font size (theme: 4.6em)
         self.spin.setFocusPolicy(Qt.ClickFocus)
         if suffix:
             self.spin.setSuffix(suffix)

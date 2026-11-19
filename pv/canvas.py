@@ -241,7 +241,7 @@ class ImageCanvas(QWidget):
     def _draw_overlay_text(self, p: QPainter):
         p.save()
         f = QFont(self.font())
-        f.setPointSizeF(10)
+        f.setPointSizeF(max(8.0, self.font().pointSizeF() * 1.05))
         p.setFont(f)
         fm = p.fontMetrics()
         lines = self.overlay_text.split('\n')

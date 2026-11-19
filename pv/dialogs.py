@@ -301,6 +301,90 @@ class SaveOptionsDialog(QDialog):
         return self.quality.value(), (self.long.value() if self.resize_cb.isChecked() else 0)
 
 
+class SettingsDialog(QDialog):
+    """Preferences. Font size changes are previewed live on the whole app; Cancel restores the old size."""
+    PRESETS = [('小', 8.5), ('標準', 9.5), ('大', 11.0), ('特大', 13.0)]
+
+    def __init__(self, settings, apply_font, parent=None):
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QSlider, QGroupBox
+        from .theme import DEFAULT_FONT_PT, MIN_FONT_PT, MAX_FONT_PT
+        super().__init__(parent)
+        self.settings = settings
+        self.apply_font = apply_font
+        self.default_pt = DEFAULT_FONT_PT
+        self.orig_pt = settings.get('ui/font_size', DEFAULT_FONT_PT, float)
+        self.pt = self.orig_pt
+        self.setWindowTitle('設定')
+        self.setMinimumWidth(460)
+        v = QVBoxLayout(self)
+
+        grp = QGroupBox('顯示')
+        g = QVBoxLayout(grp)
+        row = QHBoxLayout()
+        row.addWidget(QLabel('字體大小'))
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setRange(int(MIN_FONT_PT * 2), int(MAX_FONT_PT * 2))  # 0.5 pt steps
+        self.slider.setValue(int(round(self.orig_pt * 2)))
+        row.addWidget(self.slider, 1)
+        self.value_lbl = QLabel()
+        self.value_lbl.setMinimumWidth(60)
+        row.addWidget(self.value_lbl)
+        g.addLayout(row)
+        presets = QHBoxLayout()
+        for name, pt in self.PRESETS:
+            b = QPushButton(name)
+            b.clicked.connect(lambda _=False, pt=pt: self.slider.setValue(int(round(pt * 2))))
+            presets.addWidget(b)
+        presets.addStretch(1)
+        g.addLayout(presets)
+        self.preview = QLabel('預覽：Photo Viewer 相片管理與修圖　Quick Viewer 快速看圖　ABC abc 123')
+        self.preview.setWordWrap(True)
+        g.addWidget(self.preview)
+        note = QLabel('變更會立即套用到 Photo Viewer 的所有畫面；Quick Viewer 的資訊文字會在下次開啟時套用。')
+        note.setObjectName('Hint')
+        note.setWordWrap(True)
+        g.addWidget(note)
+        v.addWidget(grp)
+
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.RestoreDefaults)
+        bb.button(QDialogButtonBox.RestoreDefaults).setText('還原預設')
+        bb.button(QDialogButtonBox.RestoreDefaults).clicked.connect(
+            lambda: self.slider.setValue(int(round(self.default_pt * 2))))
+        bb.accepted.connect(self.accept)
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+
+        # restyling the whole app is not free: apply shortly after the slider stops moving
+        self._apply_timer = QTimer(self)
+        self._apply_timer.setSingleShot(True)
+        self._apply_timer.setInterval(180)
+        self._apply_timer.timeout.connect(lambda: self.apply_font(self.pt))
+        self.slider.valueChanged.connect(self._changed)
+        self._update_label()
+
+    def _update_label(self):
+        self.value_lbl.setText(f'{self.pt:g} pt')
+
+    def _changed(self, v):
+        self.pt = v / 2.0
+        self._update_label()
+        self._apply_timer.start()
+
+    def accept(self):
+        self._apply_timer.stop()
+        self.apply_font(self.pt)
+        self.settings.set('ui/font_size', self.pt)
+        self.settings.sync()
+        super().accept()
+
+    def reject(self):
+        self._apply_timer.stop()
+        if self.pt != self.orig_pt:
+            self.apply_font(self.orig_pt)
+        super().reject()
+
+
 SHORTCUTS_HTML = """
 <h3>管理模式</h3>
 <table cellspacing=4>
@@ -313,6 +397,7 @@ SHORTCUTS_HTML = """
 <tr><td><b>Alt+← / Alt+→</b></td><td>上一頁 / 下一頁</td></tr>
 <tr><td><b>Ctrl+滾輪</b></td><td>調整縮圖大小</td></tr>
 <tr><td><b>F5</b></td><td>重新整理</td></tr>
+<tr><td><b>拖曳縮圖到資料夾</b></td><td>移動（同一磁碟）；按住 Ctrl 複製、Shift 移動</td></tr>
 </table>
 <h3>檢視模式</h3>
 <table cellspacing=4>
@@ -328,6 +413,10 @@ SHORTCUTS_HTML = """
 <tr><td><b>[ / ]</b></td><td>向左 / 向右旋轉（JPEG 無損）</td></tr>
 <tr><td><b>Ctrl+E</b></td><td>編輯影像</td></tr>
 <tr><td><b>Ctrl+C</b></td><td>複製影像</td></tr>
+</table>
+<h3>設定</h3>
+<table cellspacing=4>
+<tr><td><b>Ctrl+,</b> 或右上角齒輪</td><td>設定字體大小（立即預覽）</td></tr>
 </table>
 <h3>編輯模式</h3>
 <table cellspacing=4>
