@@ -43,9 +43,15 @@ DEFAULTS = {
     'vignette_amount': 0, 'vignette_midpoint': 50, 'vignette_feather': 50, 'grain': 0,
     # geometry
     'orient': 1, 'straighten': 0.0, 'crop': None,
+    # output size: None, {'long': px} (keeps the aspect ratio) or {'w': px, 'h': px}
+    'resize': None,
+    # text layers (see textlayer.py), painted last, at output resolution
+    'texts': [],
 }
 
 GEOMETRY_KEYS = ('orient', 'straighten', 'crop')
+# per-image layout settings: kept when a preset is applied and never stored in presets
+LAYOUT_KEYS = GEOMETRY_KEYS + ('resize', 'texts')
 
 
 def default_params() -> dict:
@@ -635,6 +641,22 @@ def geometry_size(w, h, p, skip_crop=False):
     return w, h
 
 
+def resize_target(w, h, rs):
+    """Output size for a w x h image under the 'resize' parameter, or None when it is not resized."""
+    if not rs:
+        return None
+    if 'long' in rs:
+        s = max(1, int(rs['long'])) / float(max(w, h, 1))
+        return max(1, round(w * s)), max(1, round(h * s))
+    return max(1, int(rs.get('w', w))), max(1, int(rs.get('h', h)))
+
+
+def output_size(w, h, p):
+    """Final pixel size of render_full() for a w x h source (geometry, then the resize setting)."""
+    gw, gh = geometry_size(w, h, p)
+    return resize_target(gw, gh, p.get('resize')) or (gw, gh)
+
+
 class PreviewEngine:
     """Holds a downscaled proxy of the source and renders previews of parameter sets.
 
@@ -724,9 +746,15 @@ def render_full(full_rgb, p, alpha=None, resize_long=0):
         a = apply_geometry(alpha, p)
         if a.size == res.size:
             res.putalpha(a)
+    target = resize_target(res.width, res.height, p.get('resize'))
+    if target and target != res.size:
+        res = res.resize(target, Image.Resampling.LANCZOS)
     if resize_long and max(res.size) > resize_long:
         s = resize_long / float(max(res.size))
         res = res.resize((max(1, round(res.width * s)), max(1, round(res.height * s))), Image.Resampling.LANCZOS)
+    if p.get('texts'):
+        from .textlayer import render_onto_pil   # Qt text rendering, painted at the final resolution
+        res = render_onto_pil(res, p['texts'])
     return res
 
 

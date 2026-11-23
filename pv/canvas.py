@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal, QPointF, QRectF
-from PySide6.QtGui import QImage, QPixmap, QPainter, QColor, QPen, QPainterPath, QFont
+from PySide6.QtGui import QImage, QPixmap, QPainter, QColor, QPen, QPainterPath, QFont, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 ZOOM_STEPS = [0.02, 0.05, 0.08, 0.1, 0.125, 0.167, 0.25, 0.333, 0.5, 0.667, 0.75, 1.0,
@@ -319,8 +319,14 @@ class ImageCanvas(QWidget):
 
 
 class EditCanvas(ImageCanvas):
-    """Canvas with crop overlay and click-to-pick support."""
+    """Canvas with crop overlay, text layers and click-to-pick support."""
     cropChanged = Signal()
+    textSelected = Signal(int)        # index of the selected text layer (-1 = none)
+    textMoved = Signal()              # a layer is being dragged / scaled (live)
+    textCommitted = Signal()          # a drag or nudge finished
+    textAddAt = Signal(QPointF)       # click on empty image area in text mode (fractions of the image)
+    textActivated = Signal(int)       # double-click on a layer
+    textDeleteRequested = Signal()
 
     HANDLE = 7
 
@@ -334,6 +340,12 @@ class EditCanvas(ImageCanvas):
         self._handle = None
         self._start_rect = None
         self._start_pt = None
+        # text layers: the list is owned by the editor's parameters
+        self.texts = []
+        self.show_texts = True
+        self.text_mode = False
+        self.sel_text = -1
+        self._tdrag = None           # (kind, index, start image point, start x, y, size)
 
     # -------------------------------------------------------------- crop API
     def set_crop_mode(self, on: bool, rect=None):
@@ -394,9 +406,66 @@ class EditCanvas(ImageCanvas):
             return 'move'
         return None
 
+    # -------------------------------------------------------------- text layers
+    def _text_handle_pt(self):
+        """Widget position of the selected layer's resize handle (its bottom-right corner)."""
+        if not (0 <= self.sel_text < len(self.texts)):
+            return None
+        from .textlayer import polygon
+        poly = polygon(self.texts[self.sel_text], self._iw(), self._ih())
+        return self.image_to_widget(poly[2])
+
+    def set_text_mode(self, on: bool):
+        self.text_mode = on
+        if not on:
+            self.sel_text = -1
+        self._tdrag = None
+        self._update_cursor()
+        self.update()
+
+    def select_text(self, idx: int):
+        self.sel_text = idx if 0 <= idx < len(self.texts) else -1
+        self.update()
+
+    def _paint_texts(self, p: QPainter):
+        from .textlayer import paint_texts, paint_text, polygon, is_blank
+        iw, ih = self._iw(), self._ih()
+        r = self.image_rect()
+        p.save()
+        p.setClipRect(r)
+        p.translate(r.x(), r.y())
+        s = self._scale()
+        p.scale(s, s)
+        paint_texts(p, self.texts, iw, ih)
+        if self.text_mode and 0 <= self.sel_text < len(self.texts) and is_blank(self.texts[self.sel_text]):
+            ghost = dict(self.texts[self.sel_text], color='#c8c8cc', opacity=55, shadow=False, stroke=0, box=False)
+            paint_text(p, ghost, iw, ih)   # placeholder for a layer that has no text yet (never saved)
+        p.restore()
+        if self.text_mode and 0 <= self.sel_text < len(self.texts):
+            poly = polygon(self.texts[self.sel_text], iw, ih)
+            wp = QPolygonF([self.image_to_widget(q) for q in poly])
+            p.save()
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor(0, 0, 0, 160), 3))
+            p.drawPolygon(wp)
+            pen = QPen(QColor(55, 148, 255), 1.5, Qt.DashLine)
+            p.setPen(pen)
+            p.drawPolygon(wp)
+            hp = wp[2]
+            hs = self.HANDLE + 2
+            p.setPen(QPen(QColor(20, 20, 20), 1))
+            p.setBrush(QColor(255, 255, 255))
+            p.drawRect(QRectF(hp.x() - hs / 2.0, hp.y() - hs / 2.0, hs, hs))
+            p.restore()
+
     # -------------------------------------------------------------- painting
     def paint_overlay(self, p: QPainter):
-        if not self.crop_mode or self._img.isNull():
+        if self._img.isNull():
+            return
+        if not self.crop_mode:
+            if self.show_texts and (self.texts or self.text_mode):
+                self._paint_texts(p)
             return
         p.save()
         p.setRenderHint(QPainter.Antialiasing, False)
@@ -440,8 +509,65 @@ class EditCanvas(ImageCanvas):
             self.setCursor(Qt.CrossCursor)
         elif getattr(self, 'crop_mode', False):
             self.setCursor(Qt.CrossCursor)
+        elif getattr(self, 'text_mode', False):
+            self.setCursor(Qt.IBeamCursor)
         else:
             super()._update_cursor()
+
+    # text-mode mouse handling -------------------------------------------------
+    def _text_press(self, ev):
+        from .textlayer import hit_test
+        pos = ev.position()
+        ip = self.widget_to_image(pos)
+        hp = self._text_handle_pt()
+        if hp is not None and abs(pos.x() - hp.x()) <= self.HANDLE + 3 and abs(pos.y() - hp.y()) <= self.HANDLE + 3:
+            idx, kind = self.sel_text, 'scale'
+        else:
+            idx = hit_test(self.texts, self._iw(), self._ih(), ip)
+            kind = 'move'
+        if idx < 0:
+            if 0 <= ip.x() <= self._iw() and 0 <= ip.y() <= self._ih():
+                self.textAddAt.emit(QPointF(ip.x() / max(1, self._iw()), ip.y() / max(1, self._ih())))
+            elif self.sel_text >= 0:
+                self.select_text(-1)
+                self.textSelected.emit(-1)
+            return
+        if idx != self.sel_text:
+            self.select_text(idx)
+            self.textSelected.emit(idx)
+        t = self.texts[idx]
+        self._tdrag = (kind, idx, ip, float(t['x']), float(t['y']), float(t['size']), False)
+
+    def _text_drag(self, ev):
+        kind, idx, start, x0, y0, size0, _ = self._tdrag
+        if idx >= len(self.texts):
+            self._tdrag = None
+            return
+        t = self.texts[idx]
+        ip = self.widget_to_image(ev.position())
+        iw, ih = max(1, self._iw()), max(1, self._ih())
+        if kind == 'move':
+            t['x'] = round(min(1.0, max(0.0, x0 + (ip.x() - start.x()) / iw)), 5)
+            t['y'] = round(min(1.0, max(0.0, y0 + (ip.y() - start.y()) / ih)), 5)
+        else:
+            from .textlayer import MIN_SIZE, MAX_SIZE
+            cx, cy = x0 * iw, y0 * ih
+            d0 = max(4.0, ((start.x() - cx) ** 2 + (start.y() - cy) ** 2) ** 0.5)
+            d1 = ((ip.x() - cx) ** 2 + (ip.y() - cy) ** 2) ** 0.5
+            t['size'] = round(min(MAX_SIZE, max(MIN_SIZE, size0 * d1 / d0)), 2)
+        self._tdrag = self._tdrag[:6] + (True,)
+        self.update()
+        self.textMoved.emit()
+
+    def _text_hover(self, pos):
+        from .textlayer import hit_test
+        hp = self._text_handle_pt()
+        if hp is not None and abs(pos.x() - hp.x()) <= self.HANDLE + 3 and abs(pos.y() - hp.y()) <= self.HANDLE + 3:
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif hit_test(self.texts, self._iw(), self._ih(), self.widget_to_image(pos)) >= 0:
+            self.setCursor(Qt.SizeAllCursor)
+        else:
+            self.setCursor(Qt.IBeamCursor)
 
     _CURSORS = {'tl': Qt.SizeFDiagCursor, 'br': Qt.SizeFDiagCursor, 'tr': Qt.SizeBDiagCursor,
                 'bl': Qt.SizeBDiagCursor, 't': Qt.SizeVerCursor, 'b': Qt.SizeVerCursor,
@@ -457,6 +583,10 @@ class EditCanvas(ImageCanvas):
             self._start_rect = self._crop_px()
             self._start_pt = self._clamped_img_pt(ev.position())
             return
+        if self.text_mode and ev.button() == Qt.LeftButton and self.has_image() and not self.crop_mode:
+            self.setFocus()
+            self._text_press(ev)
+            return
         super().mousePressEvent(ev)
 
     def mouseMoveEvent(self, ev):
@@ -464,9 +594,16 @@ class EditCanvas(ImageCanvas):
             if self._handle and (ev.buttons() & Qt.LeftButton):
                 self._drag_crop(self._clamped_img_pt(ev.position()))
                 self.update()
+                self.cropChanged.emit()
             else:
                 h = self._hit(ev.position())
                 self.setCursor(self._CURSORS.get(h, Qt.CrossCursor))
+            return
+        if self.text_mode and self.has_image():
+            if self._tdrag and (ev.buttons() & Qt.LeftButton):
+                self._text_drag(ev)
+            else:
+                self._text_hover(ev.position())
             return
         super().mouseMoveEvent(ev)
 
@@ -479,10 +616,22 @@ class EditCanvas(ImageCanvas):
             self.cropChanged.emit()
             self.update()
             return
+        if self.text_mode and ev.button() == Qt.LeftButton:
+            moved = bool(self._tdrag and self._tdrag[6])
+            self._tdrag = None
+            if moved:
+                self.textCommitted.emit()
+            return
         super().mouseReleaseEvent(ev)
 
     def mouseDoubleClickEvent(self, ev):
         if self.crop_mode:
+            return
+        if self.text_mode:
+            if ev.button() == Qt.LeftButton and 0 <= self.sel_text < len(self.texts):
+                from .textlayer import hit_test
+                if hit_test(self.texts, self._iw(), self._ih(), self.widget_to_image(ev.position())) == self.sel_text:
+                    self.textActivated.emit(self.sel_text)
             return
         super().mouseDoubleClickEvent(ev)
 
@@ -564,4 +713,21 @@ class EditCanvas(ImageCanvas):
         self._set_crop_px(nx0, ny0, nx1, ny1)
 
     def keyPressEvent(self, ev):
+        if self.text_mode and 0 <= self.sel_text < len(self.texts) and not self.crop_mode:
+            k = ev.key()
+            if k in (Qt.Key_Delete, Qt.Key_Backspace):
+                self.textDeleteRequested.emit()
+                return
+            steps = {Qt.Key_Left: (-1, 0), Qt.Key_Right: (1, 0), Qt.Key_Up: (0, -1), Qt.Key_Down: (0, 1)}
+            if k in steps:
+                dx, dy = steps[k]
+                n = 10 if ev.modifiers() & Qt.ShiftModifier else 1
+                s = max(1e-6, self._scale())          # one screen pixel, in image pixels
+                t = self.texts[self.sel_text]
+                t['x'] = round(min(1.0, max(0.0, t['x'] + dx * n / s / max(1, self._iw()))), 5)
+                t['y'] = round(min(1.0, max(0.0, t['y'] + dy * n / s / max(1, self._ih()))), 5)
+                self.update()
+                self.textMoved.emit()
+                self.textCommitted.emit()
+                return
         super().keyPressEvent(ev)

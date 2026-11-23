@@ -206,6 +206,18 @@ class G:
     PRESET = ''
     PREVIEW = ''
     SETTINGS = ''
+    TEXT = ''
+    BOLD = ''
+    ITALIC = ''
+    ALIGN_LEFT = ''
+    ALIGN_CENTER = ''
+    ALIGN_RIGHT = ''
+    RESIZE = ''
+    STITCH = ''
+    ADD = ''
+    ARROW_DOWN = ''
+    ARROW_RIGHT = ''
+    ARROW_LEFT = ''
 
 
 _icon_family = None

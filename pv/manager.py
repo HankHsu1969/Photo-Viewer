@@ -413,6 +413,8 @@ class ManagePage(QWidget):
         self.act_select_all = A('全選', lambda: self.view.selectAll(), 'Ctrl+A')
         self.act_batch_rename = A('批次重新命名…', self._batch_rename, None, G.RENAME)
         self.act_batch_resize = A('批次調整大小／轉檔…', self._batch_resize, None, G.PHOTO)
+        self.act_stitch = A('拼接圖片…', self._stitch, None, G.STITCH,
+                            tip='把選取的多張圖片往下、往右或往左接成一張大圖')
         self.act_preview = A('顯示預覽與屬性窗格', self._toggle_preview, 'F9', G.PREVIEW, checkable=True)
         self.act_bigger = A('放大縮圖', lambda: self.size_slider.setValue(self.size_slider.value() + 20), 'Ctrl+=')
         self.act_smaller = A('縮小縮圖', lambda: self.size_slider.setValue(self.size_slider.value() - 20), 'Ctrl+-')
@@ -443,7 +445,7 @@ class ManagePage(QWidget):
         m_rate = m_tools.addMenu('設定評等')
         m_rate.addActions(self.rating_actions)
         m_tools.addSeparator()
-        m_tools.addActions([self.act_batch_rename, self.act_batch_resize])
+        m_tools.addActions([self.act_batch_rename, self.act_batch_resize, self.act_stitch])
         self.menus = [m_file, m_edit, m_view, m_tools]
 
     def _build_toolbar(self):
@@ -461,7 +463,7 @@ class ManagePage(QWidget):
             btn = tb.widgetForAction(a)
             if isinstance(btn, QToolButton):
                 btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        tb.addActions([self.act_rot_l, self.act_rot_r, self.act_delete])
+        tb.addActions([self.act_rot_l, self.act_rot_r, self.act_delete, self.act_stitch])
         tb.addSeparator()
         self.sort_combo = QComboBox()
         for label, _ in self.SORTS:
@@ -858,6 +860,8 @@ class ManagePage(QWidget):
             m.addSeparator()
             m.addActions([self.act_copy_to, self.act_move_to, self.act_rename, self.act_delete])
             m.addSeparator()
+            if sum(1 for e in ents if not e.is_dir) >= 2:
+                m.addAction(self.act_stitch)
             m.addActions([self.act_batch_rename, self.act_batch_resize])
             m.addSeparator()
             m.addActions([self.act_copy_path, self.act_reveal])
@@ -968,6 +972,25 @@ class ManagePage(QWidget):
         dlg = BatchResizeDialog(imgs, self.settings, self)
         dlg.exec()
         self.reload(keep_selection=True)
+
+    def _stitch(self):
+        imgs = self.selected_images()
+        if len(imgs) < 2:
+            QMessageBox.information(self, '拼接圖片', '請先選取兩張以上的圖片（按住 Ctrl 或 Shift 點選縮圖），'
+                                                  '再選擇「拼接圖片」。')
+            return
+        from .stitch import StitchDialog
+        dlg = StitchDialog(imgs, self.folder, self.settings, self)
+        if dlg.exec() != StitchDialog.Accepted or not dlg.output:
+            return
+        out = dlg.output
+        self.thumbs.invalidate(out)
+        if self.folder and norm(os.path.dirname(out)) == norm(self.folder):
+            self.reload(select=[out])
+        self.st_right.setText(f'已建立拼接圖片：{os.path.basename(out)}')
+        QTimer.singleShot(6000, self._update_status)
+        if dlg.open_after:
+            self.requestEdit.emit(out)
 
     def _copy_move(self, move):
         ents = self.selected_entries()

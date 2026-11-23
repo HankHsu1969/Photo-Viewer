@@ -3,7 +3,7 @@
 ; Per-user install (no admin): %LOCALAPPDATA%\Programs\PhotoViewer
 
 #define AppName "Photo Viewer"
-#define AppVersion "1.2.0"
+#define AppVersion "1.3.0"
 #define AppExe "PhotoViewer.exe"
 #define QuickExe "QuickViewer.exe"
 #define QuickName "Quick Viewer"

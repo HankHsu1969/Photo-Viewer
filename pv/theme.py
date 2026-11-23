@@ -14,6 +14,11 @@ class _Style(QProxyStyle):
             return int(Qt.MouseButton.LeftButton.value)
         return super().styleHint(hint, option, widget, returnData)
 
+    def pixelMetric(self, metric, option=None, widget=None):
+        if metric == QStyle.PixelMetric.PM_ToolBarExtensionExtent:
+            return 24     # room for a visible "more tools" chevron when a toolbar overflows
+        return super().pixelMetric(metric, option, widget)
+
 
 QSS = """
 * { font-family: "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei"; font-size: @BASE@pt; }
@@ -35,6 +40,8 @@ QToolButton:hover { background: #3c3c42; border-color: #4a4a50; }
 QToolButton:pressed { background: #2f2f34; }
 QToolButton:checked { background: #2d5fa8; border-color: #3794ff; }
 QToolButton::menu-indicator { image: none; width: 0; }
+QToolButton#qt_toolbar_ext_button { padding: 0; border: none; }
+QToolButton#qt_toolbar_ext_button:hover { background: #3c3c42; }
 #ModeBar { background: #1d1d20; border-bottom: 1px solid #111113; }
 #ModeBar QPushButton { color: #b8b8bc; background: transparent; border: none; border-radius: 0;
     padding: 7px 20px; font-size: @BIG@pt; border-bottom: 2px solid transparent; }
@@ -94,6 +101,12 @@ QLabel#SmallLabel { color: #9a9aa0; font-size: @SMALL@pt; }
 QDoubleSpinBox#ParamSpin { min-width: 4.6em; max-width: 4.6em; }
 QLineEdit#Search { min-width: 11em; max-width: 11em; }
 QWidget#EditPanel { min-width: 27em; max-width: 42em; }
+QLabel#ToolTitle { color: #f2f2f2; font-weight: 600; font-size: @BIG@pt; padding: 2px 0; }
+QPlainTextEdit { background: #1a1a1c; border: 1px solid #3d3d42; border-radius: 3px; color: #e6e6e6;
+    selection-background-color: #2f6fd1; }
+QPlainTextEdit:focus { border-color: #3794ff; }
+QPlainTextEdit#TextContent { min-height: 3.8em; max-height: 5.2em; }
+QListWidget#TextLayers { min-height: 3.2em; max-height: 5.6em; border: 1px solid #333338; }
 QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #b5b5ba; }
 """
 
@@ -132,6 +145,14 @@ def scale_icons(root, font_pt):
     from PySide6.QtWidgets import (QWidget, QToolBar, QToolButton, QAbstractButton, QListView,
                                    QTreeView, QListWidget)
     s = icon_scale(font_pt)
+    from .common import glyph_icon
+    for tb in ([root] if isinstance(root, QToolBar) else []) + root.findChildren(QToolBar):
+        # Qt's overflow button draws a dark arrow that is invisible on this theme: use a light chevron
+        ext = tb.findChild(QToolButton, 'qt_toolbar_ext_button')
+        if ext is not None:
+            ext.setIcon(glyph_icon(''))
+            ext.setIconSize(QSize(max(12, round(14 * s)), max(12, round(14 * s))))
+            ext.setToolTip('更多工具')
     for w in [root] + root.findChildren(QWidget):
         if isinstance(w, QToolButton) and isinstance(w.parentWidget(), QToolBar):
             continue                      # sized by its toolbar

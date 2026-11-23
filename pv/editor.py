@@ -13,19 +13,28 @@ import numpy as np
 from PIL import Image, ImageOps
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QSize, QEventLoop
 from PySide6.QtGui import QAction, QKeySequence, QGuiApplication
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QLabel, QSplitter, QScrollArea,
                                QComboBox, QPushButton, QToolButton, QTabWidget, QCheckBox, QRadioButton,
                                QButtonGroup, QSpinBox, QDoubleSpinBox, QMessageBox, QFileDialog, QDialog,
-                               QProgressDialog, QMenu, QSizePolicy, QAbstractSpinBox, QGridLayout)
+                               QProgressDialog, QMenu, QSizePolicy, QAbstractSpinBox, QGridLayout,
+                               QStackedWidget, QPlainTextEdit, QFontComboBox, QListWidget)
 
 from .canvas import EditCanvas
 from .common import (G, glyph_icon, array_to_qimage, compose_orientation, ORIENT_OPS, cache_dir,
                      WRITABLE_EXTS, ext_of, norm)
-from .dialogs import SaveOptionsDialog
+from .dialogs import SaveOptionsDialog, ResizeDialog, ColorButton
 from .editwidgets import ParamSlider, Section, HistogramWidget, CurvesWidget, LevelsWidget, hex_hsv
-from .imageops import (default_params, merge_params, DEFAULTS, GEOMETRY_KEYS, PreviewEngine, render_full,
-                       save_image, transform_rect, auto_levels, auto_contrast, straighten_scale, histogram,
-                       to_uint8, process, HSL_NAMES, HSL_CENTERS, BW_NAMES, BW_CENTERS, CHANNELS)
+from .imageops import (default_params, merge_params, DEFAULTS, GEOMETRY_KEYS, LAYOUT_KEYS, PreviewEngine,
+                       render_full, save_image, transform_rect, auto_levels, auto_contrast, histogram,
+                       to_uint8, process, geometry_size, output_size, HSL_NAMES, HSL_CENTERS, BW_NAMES,
+                       BW_CENTERS, CHANNELS)
+from .textlayer import new_text, normalized, label as text_label, is_blank, TEXT_DEFAULTS
+
+# text style properties remembered between layers (a new layer takes the last used style)
+TEXT_STYLE_KEYS = ('size', 'font', 'bold', 'italic', 'align', 'color', 'opacity', 'stroke', 'stroke_color',
+                   'shadow', 'box', 'box_color', 'box_opacity')
+QUICK_COLORS = ['#ffffff', '#000000', '#ff3b30', '#ffcc00', '#34c759', '#0a84ff', '#ff2d92']
 
 PRESETS = {
     '鮮豔': {'vibrance': 35, 'saturation': 8, 'contrast': 12, 'clarity': 12},
@@ -51,6 +60,26 @@ ASPECTS = [('自由比例', None), ('原始比例', 'orig'), ('1:1 正方形', 1
 
 CH_KEYS = ['rgb', 'r', 'g', 'b']
 CH_LABELS = ['RGB', '紅', '綠', '藍']
+
+
+def _preview_resized(eng, p, u8, logical, fast):
+    """Reshape a preview frame to the output size/aspect of the 'resize' setting.
+
+    Shrinking below the preview resolution shows the real output pixels; a stretched (unlocked) size
+    shows the stretched aspect. Returns (frame, logical size).
+    """
+    tw, th = output_size(eng.full.width, eng.full.height, p)
+    s = min(1.0, max(logical) / float(max(tw, th)))
+    dw, dh = max(1, round(tw * s)), max(1, round(th * s))
+    if (dw, dh) == tuple(logical):
+        return u8, logical
+    fh, fw = u8.shape[:2]
+    k = fw / float(max(1, logical[0]))          # frame pixels per logical pixel (0.5 for fast frames)
+    nw, nh = max(1, round(dw * k)), max(1, round(dh * k))
+    if (nw, nh) != (fw, fh):
+        rs = Image.Resampling.BILINEAR if fast else Image.Resampling.LANCZOS
+        u8 = np.asarray(Image.fromarray(u8).resize((nw, nh), rs))
+    return u8, (dw, dh)
 
 
 # --------------------------------------------------------------------------- workers
@@ -134,6 +163,7 @@ class EditPage(QWidget):
         self._sliders = {}
         self._cb_range = 'midtones'
         self._lv_ch = 'rgb'
+        self._text_style = {k: copy.deepcopy(TEXT_DEFAULTS[k]) for k in TEXT_STYLE_KEYS}
 
         self.worker = RenderWorker(self)
         self.worker.rendered.connect(self._on_rendered)
@@ -154,6 +184,13 @@ class EditPage(QWidget):
         self.canvas.shrink_only = True
         self.canvas.clicked.connect(self._canvas_clicked)
         self.canvas.zoomChanged.connect(lambda _z: self._update_status())
+        self.canvas.cropChanged.connect(self._update_crop_size)
+        self.canvas.textSelected.connect(self._on_text_selected)
+        self.canvas.textAddAt.connect(lambda pt: self._add_text(pt.x(), pt.y()))
+        self.canvas.textMoved.connect(self._on_text_moved)
+        self.canvas.textCommitted.connect(lambda: self._commit_timer.start())
+        self.canvas.textActivated.connect(lambda _i: self._focus_text_edit())
+        self.canvas.textDeleteRequested.connect(self._delete_text)
 
         self._build_actions()
         self.toolbar = self._build_toolbar()
@@ -184,15 +221,22 @@ class EditPage(QWidget):
         sh.addStretch(1)
         sh.addWidget(self.st_zoom)
 
+        top = QWidget()
+        th = QHBoxLayout(top)
+        th.setContentsMargins(0, 0, 0, 0)
+        th.setSpacing(0)
+        th.addWidget(self.toolbar, 1)
+        th.addWidget(self.toolbar_end, 0)
+
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
-        v.addWidget(self.toolbar)
+        v.addWidget(top)
         v.addWidget(split, 1)
         v.addWidget(self.statusw)
 
     # ================================================================== UI construction
-    def _act(self, text, slot, shortcut=None, glyph=None, tip=None, mirror=False):
+    def _act(self, text, slot, shortcut=None, glyph=None, tip=None, mirror=False, checkable=False):
         a = QAction(text, self)
         if glyph:
             a.setIcon(glyph_icon(glyph, mirror=mirror))
@@ -202,8 +246,10 @@ class EditPage(QWidget):
             else:
                 a.setShortcut(QKeySequence(shortcut))
         sc = a.shortcut()
-        a.setToolTip(tip or (text + (f"（{sc.toString(QKeySequence.NativeText)}）" if not sc.isEmpty() else '')))
-        a.triggered.connect(slot)
+        keys = f"（{sc.toString(QKeySequence.NativeText)}）" if not sc.isEmpty() else ''
+        a.setToolTip((tip + keys) if tip else (text + keys))
+        a.setCheckable(checkable)
+        (a.toggled if checkable else a.triggered).connect(slot)
         return a
 
     def _build_actions(self):
@@ -217,6 +263,9 @@ class EditPage(QWidget):
         self.act_100 = A('100%', self.canvas.actual_size, 'Ctrl+1', G.ACTUAL)
         self.act_done = A('完成', self.done, None, G.CHECK, tip='完成編輯並返回')
         self.act_cancel = A('取消', self.cancel, None, G.CANCEL, tip='放棄未儲存的調整並返回')
+        self.act_crop = A('裁切', self._crop_toggled, 'C', G.CROP, tip='裁切影像', checkable=True)
+        self.act_resize = A('尺寸', self._resize_dialog, 'Ctrl+R', G.RESIZE, tip='調整影像尺寸（寬 × 高）')
+        self.act_text = A('文字', self._text_tool, 'T', G.TEXT, tip='在影像上加入文字', checkable=True)
         m_file = QMenu('檔案(&F)', self)
         m_file.addActions([self.act_save, self.act_save_as])
         m_file.addSeparator()
@@ -225,9 +274,11 @@ class EditPage(QWidget):
         m_edit.addActions([self.act_undo, self.act_redo])
         m_edit.addSeparator()
         m_edit.addAction(self.act_reset)
+        m_tools = QMenu('工具(&T)', self)
+        m_tools.addActions([self.act_crop, self.act_resize, self.act_text])
         m_view = QMenu('檢視(&V)', self)
         m_view.addActions([self.act_fit, self.act_100])
-        self.menus = [m_file, m_edit, m_view]
+        self.menus = [m_file, m_edit, m_tools, m_view]
 
     def _build_toolbar(self):
         tb = QToolBar()
@@ -247,6 +298,13 @@ class EditPage(QWidget):
         tb.addWidget(self.btn_compare)
         tb.addActions([self.act_fit, self.act_100])
         tb.addSeparator()
+        tb.addActions([self.act_crop, self.act_resize, self.act_text])
+        tb.addSeparator()
+        # frequently recognised icons go icon-only so the new tools fit on the toolbar
+        for a in (self.act_undo, self.act_redo, self.act_fit, self.act_100):
+            btn = tb.widgetForAction(a)
+            if btn is not None:
+                btn.setToolButtonStyle(Qt.ToolButtonIconOnly)
         tb.addWidget(QLabel(' 預設集 '))
         self.preset_combo = QComboBox()
         self.preset_combo.addItem('選擇效果…')
@@ -263,15 +321,18 @@ class EditPage(QWidget):
         pm.addAction('載入預設集檔案…', self._load_preset)
         b.setMenu(pm)
         tb.addWidget(b)
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        tb.addWidget(spacer)
-        tb.addAction(self.act_cancel)
-        tb.addAction(self.act_done)
-        btn = tb.widgetForAction(self.act_done)
+        # Cancel / Done live in their own toolbar so they never disappear into the overflow menu
+        # (large font sizes or narrow windows only push the left toolbar's items into its » menu).
+        end = QToolBar()
+        end.setIconSize(QSize(18, 18))
+        end.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        end.addAction(self.act_cancel)
+        end.addAction(self.act_done)
+        btn = end.widgetForAction(self.act_done)
         if btn is not None:
             btn.setStyleSheet('QToolButton { background:#2f6fd1; border:1px solid #3794ff; color:white; padding:3px 12px; }'
                               'QToolButton:hover { background:#3a7ee0; }')
+        self.toolbar_end = end
         return tb
 
     def _slider(self, key, label, lo, hi, dec=0, grad=None, idx=None):
@@ -497,28 +558,33 @@ class EditPage(QWidget):
         l.addLayout(g)
         l.addWidget(self._slider('straighten', '拉直（角度）', -45, 45, 1))
         crop_row = QHBoxLayout()
-        self.btn_crop = QPushButton(glyph_icon(G.CROP), ' 裁切')
-        self.btn_crop.setCheckable(True)
-        self.btn_crop.toggled.connect(self._crop_toggled)
-        self.aspect_combo = QComboBox()
-        for label, _ in ASPECTS:
-            self.aspect_combo.addItem(label)
-        self.aspect_combo.currentIndexChanged.connect(self._aspect_changed)
+        self.btn_crop = QPushButton(glyph_icon(G.CROP), ' 裁切…')
+        self.btn_crop.setToolTip('進入裁切模式（C）')
+        self.btn_crop.clicked.connect(lambda: self.act_crop.setChecked(True))
+        self.btn_crop_clear2 = QPushButton('清除裁切')
+        self.btn_crop_clear2.clicked.connect(self._clear_crop)
         crop_row.addWidget(self.btn_crop)
-        crop_row.addWidget(self.aspect_combo, 1)
+        crop_row.addWidget(self.btn_crop_clear2)
+        crop_row.addStretch(1)
         l.addLayout(crop_row)
-        crop_row2 = QHBoxLayout()
-        self.btn_crop_apply = QPushButton('套用裁切')
-        self.btn_crop_apply.setObjectName('Primary')
-        self.btn_crop_apply.clicked.connect(self._apply_crop)
-        self.btn_crop_cancel = QPushButton('取消')
-        self.btn_crop_cancel.clicked.connect(self._cancel_crop)
-        self.btn_crop_clear = QPushButton('清除裁切')
-        self.btn_crop_clear.clicked.connect(self._clear_crop)
-        for bt in (self.btn_crop_apply, self.btn_crop_cancel, self.btn_crop_clear):
-            crop_row2.addWidget(bt)
-        l.addLayout(crop_row2)
-        iv.addWidget(Section('幾何（旋轉／拉直／裁切）', w, False, lambda: self._reset_keys(list(GEOMETRY_KEYS))))
+        size_row = QHBoxLayout()
+        self.size_lbl = QLabel()
+        self.size_lbl.setObjectName('SmallLabel')
+        self.size_lbl.setWordWrap(True)
+        b = QPushButton(glyph_icon(G.RESIZE), ' 調整尺寸…')
+        b.setToolTip('改變影像的寬度與高度（Ctrl+R）')
+        b.clicked.connect(self._resize_dialog)
+        self.btn_resize_clear = QPushButton('原始尺寸')
+        self.btn_resize_clear.setToolTip('取消尺寸調整')
+        self.btn_resize_clear.clicked.connect(self._clear_resize)
+        size_row.addWidget(b)
+        size_row.addWidget(self.btn_resize_clear)
+        size_row.addStretch(1)
+        l.addLayout(size_row)
+        l.addWidget(self.size_lbl)
+        self.geo_section = Section('幾何（旋轉／拉直／裁切／尺寸）', w, False,
+                                   lambda: self._reset_keys(list(GEOMETRY_KEYS) + ['resize']))
+        iv.addWidget(self.geo_section)
 
         # ---- effects
         w, l = self._box()
@@ -531,9 +597,207 @@ class EditPage(QWidget):
 
         iv.addStretch(1)
         scroll.setWidget(inner)
-        pv.addWidget(scroll, 1)
+        # the panel shows the adjustments, or the options of the active tool (crop / text)
+        self.tool_stack = QStackedWidget()
+        self.tool_stack.addWidget(scroll)
+        self.tool_stack.addWidget(self._build_crop_page())
+        self.tool_stack.addWidget(QWidget())     # text page: built on first use (the font list is slow)
+        self._text_page = None
+        pv.addWidget(self.tool_stack, 1)
         self._update_crop_buttons()
         return panel
+
+    @staticmethod
+    def _page_title(text):
+        t = QLabel(text)
+        t.setObjectName('ToolTitle')
+        return t
+
+    @staticmethod
+    def _hint(text):
+        h = QLabel(text)
+        h.setObjectName('Hint')
+        h.setWordWrap(True)
+        return h
+
+    def _build_crop_page(self):
+        page = QWidget()
+        l = QVBoxLayout(page)
+        l.setContentsMargins(10, 8, 10, 10)
+        l.setSpacing(8)
+        l.addWidget(self._page_title('裁切'))
+        l.addWidget(self._hint('拖曳框線或四個角調整範圍，在框外拖曳可重新框選。按 Enter 套用、Esc 取消。'))
+        row = QHBoxLayout()
+        row.addWidget(QLabel('比例'))
+        self.aspect_combo = QComboBox()
+        for label, _ in ASPECTS:
+            self.aspect_combo.addItem(label)
+        self.aspect_combo.currentIndexChanged.connect(self._aspect_changed)
+        row.addWidget(self.aspect_combo, 1)
+        l.addLayout(row)
+        self.crop_size_lbl = QLabel()
+        l.addWidget(self.crop_size_lbl)
+        row = QHBoxLayout()
+        self.btn_crop_apply = QPushButton(glyph_icon(G.CHECK), ' 套用裁切')
+        self.btn_crop_apply.setObjectName('Primary')
+        self.btn_crop_apply.clicked.connect(self._apply_crop)
+        self.btn_crop_cancel = QPushButton('取消')
+        self.btn_crop_cancel.clicked.connect(self._cancel_crop)
+        row.addWidget(self.btn_crop_apply, 1)
+        row.addWidget(self.btn_crop_cancel)
+        l.addLayout(row)
+        self.btn_crop_clear = QPushButton('清除裁切（使用整張影像）')
+        self.btn_crop_clear.clicked.connect(self._clear_crop)
+        l.addWidget(self.btn_crop_clear)
+        l.addStretch(1)
+        return page
+
+    def _ensure_text_page(self):
+        if self._text_page is not None:
+            return
+        page = self._build_text_page()
+        old = self.tool_stack.widget(2)
+        self.tool_stack.removeWidget(old)
+        old.deleteLater()
+        self.tool_stack.insertWidget(2, page)
+        self._text_page = page
+        from PySide6.QtWidgets import QApplication
+        from .theme import scale_icons
+        scale_icons(page, QApplication.instance().font().pointSizeF())   # icons follow the font size
+
+    def _build_text_page(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        inner = QWidget()
+        l = QVBoxLayout(inner)
+        l.setContentsMargins(10, 8, 10, 10)
+        l.setSpacing(6)
+        l.addWidget(self._page_title('文字'))
+        l.addWidget(self._hint('在影像上點一下即可新增文字並直接輸入。拖曳文字可移動，拖曳右下角的白色方塊可縮放；'
+                               '方向鍵微調位置，Delete 刪除。'))
+        row = QHBoxLayout()
+        self.btn_text_add = QPushButton(glyph_icon(G.ADD), ' 新增')
+        self.btn_text_add.setToolTip('在影像中央新增文字')
+        self.btn_text_add.clicked.connect(lambda: self._add_text(0.5, 0.5))
+        self.btn_text_dup = QPushButton(glyph_icon(G.COPY), ' 複製')
+        self.btn_text_dup.clicked.connect(self._duplicate_text)
+        self.btn_text_del = QPushButton(glyph_icon(G.DELETE), ' 刪除')
+        self.btn_text_del.clicked.connect(self._delete_text)
+        for bt in (self.btn_text_add, self.btn_text_dup, self.btn_text_del):
+            row.addWidget(bt)
+        row.addStretch(1)
+        l.addLayout(row)
+        self.text_list = QListWidget()
+        self.text_list.setObjectName('TextLayers')
+        self.text_list.currentRowChanged.connect(self._text_list_row)
+        l.addWidget(self.text_list)
+
+        box = QWidget()
+        bl = QVBoxLayout(box)
+        bl.setContentsMargins(0, 4, 0, 0)
+        bl.setSpacing(5)
+        bl.addWidget(QLabel('內容'))
+        self.text_edit = QPlainTextEdit()
+        self.text_edit.setObjectName('TextContent')
+        self.text_edit.setPlaceholderText('在此輸入文字（Enter 換行）')
+        self.text_edit.textChanged.connect(lambda: self._set_text_prop('text', self.text_edit.toPlainText()))
+        bl.addWidget(self.text_edit)
+        row = QHBoxLayout()
+        row.addWidget(QLabel('字型'))
+        self.font_combo = QFontComboBox()
+        self.font_combo.setEditable(False)
+        self.font_combo.currentFontChanged.connect(lambda f: self._set_text_prop('font', f.family()))
+        row.addWidget(self.font_combo, 1)
+        bl.addLayout(row)
+        row = QHBoxLayout()
+        self.btn_bold = self._tool_button(G.BOLD, '粗體', True)
+        self.btn_bold.toggled.connect(lambda on: self._set_text_prop('bold', bool(on)))
+        self.btn_italic = self._tool_button(G.ITALIC, '斜體', True)
+        self.btn_italic.toggled.connect(lambda on: self._set_text_prop('italic', bool(on)))
+        row.addWidget(self.btn_bold)
+        row.addWidget(self.btn_italic)
+        row.addSpacing(10)
+        self.align_group = QButtonGroup(self)
+        self.align_group.setExclusive(True)
+        self._align_btns = {}
+        for key, glyph, tip in (('left', G.ALIGN_LEFT, '靠左對齊'), ('center', G.ALIGN_CENTER, '置中對齊'),
+                                ('right', G.ALIGN_RIGHT, '靠右對齊')):
+            b = self._tool_button(glyph, tip, True)
+            b.toggled.connect(lambda on, k=key: on and self._set_text_prop('align', k))
+            self.align_group.addButton(b)
+            self._align_btns[key] = b
+            row.addWidget(b)
+        row.addStretch(1)
+        bl.addLayout(row)
+        self.sl_text_size = ParamSlider('大小（影像高度 %）', 0.5, 60, TEXT_DEFAULTS['size'], 1)
+        self.sl_text_size.valueChanged.connect(lambda v: self._set_text_prop('size', v))
+        bl.addWidget(self.sl_text_size)
+        row = QHBoxLayout()
+        row.addWidget(QLabel('顏色'))
+        self.btn_text_color = ColorButton(TEXT_DEFAULTS['color'], '文字顏色')
+        self.btn_text_color.colorChanged.connect(lambda c: self._set_text_prop('color', c))
+        row.addWidget(self.btn_text_color)
+        for c in QUICK_COLORS:
+            q = QToolButton()
+            q.setObjectName('Swatch')
+            q.setToolTip(c)
+            q.setStyleSheet(f'QToolButton#Swatch {{ background:{c}; border:1px solid #6a6a70; border-radius:3px; '
+                            f'min-width:1.1em; max-width:1.1em; min-height:1.1em; max-height:1.1em; padding:0; }}'
+                            f'QToolButton#Swatch:hover {{ border:1px solid #ffffff; }}')
+            q.clicked.connect(lambda _=False, c=c: self._quick_color(c))
+            row.addWidget(q)
+        row.addStretch(1)
+        bl.addLayout(row)
+        self.sl_text_opacity = ParamSlider('不透明度', 0, 100, 100)
+        self.sl_text_opacity.valueChanged.connect(lambda v: self._set_text_prop('opacity', v))
+        bl.addWidget(self.sl_text_opacity)
+        self.sl_text_angle = ParamSlider('旋轉角度', -180, 180, 0)
+        self.sl_text_angle.valueChanged.connect(lambda v: self._set_text_prop('angle', float(v)))
+        bl.addWidget(self.sl_text_angle)
+        row = QHBoxLayout()
+        row.addWidget(QLabel('外框顏色'))
+        self.btn_stroke_color = ColorButton(TEXT_DEFAULTS['stroke_color'], '外框顏色')
+        self.btn_stroke_color.colorChanged.connect(lambda c: self._set_text_prop('stroke_color', c))
+        row.addWidget(self.btn_stroke_color)
+        row.addStretch(1)
+        bl.addLayout(row)
+        self.sl_text_stroke = ParamSlider('外框粗細', 0, 30, 0)
+        self.sl_text_stroke.valueChanged.connect(lambda v: self._set_text_prop('stroke', v))
+        bl.addWidget(self.sl_text_stroke)
+        self.cb_text_shadow = QCheckBox('陰影')
+        self.cb_text_shadow.toggled.connect(lambda on: self._set_text_prop('shadow', bool(on)))
+        bl.addWidget(self.cb_text_shadow)
+        row = QHBoxLayout()
+        self.cb_text_box = QCheckBox('底色方塊')
+        self.cb_text_box.toggled.connect(lambda on: self._set_text_prop('box', bool(on)))
+        self.btn_box_color = ColorButton(TEXT_DEFAULTS['box_color'], '底色方塊顏色')
+        self.btn_box_color.colorChanged.connect(lambda c: self._set_text_prop('box_color', c))
+        row.addWidget(self.cb_text_box)
+        row.addWidget(self.btn_box_color)
+        row.addStretch(1)
+        bl.addLayout(row)
+        self.sl_box_opacity = ParamSlider('底色不透明度', 0, 100, TEXT_DEFAULTS['box_opacity'])
+        self.sl_box_opacity.valueChanged.connect(lambda v: self._set_text_prop('box_opacity', v))
+        bl.addWidget(self.sl_box_opacity)
+        self.text_box = box
+        l.addWidget(box)
+        done = QPushButton(glyph_icon(G.CHECK), ' 完成文字')
+        done.setObjectName('Primary')
+        done.clicked.connect(lambda: self.act_text.setChecked(False))
+        l.addWidget(done)
+        l.addStretch(1)
+        scroll.setWidget(inner)
+        return scroll
+
+    @staticmethod
+    def _tool_button(glyph, tip, checkable=False):
+        b = QToolButton()
+        b.setIcon(glyph_icon(glyph))
+        b.setToolTip(tip)
+        b.setCheckable(checkable)
+        b.setIconSize(QSize(16, 16))
+        return b
 
     # ================================================================== loading
     def _proxy_side(self):
@@ -573,16 +837,15 @@ class EditPage(QWidget):
         self.hist_idx = 0
         self._last_qimg = None
         self._comparing = False
-        if self.crop_mode:
-            self.btn_crop.blockSignals(True)
-            self.btn_crop.setChecked(False)
-            self.btn_crop.blockSignals(False)
-            self.crop_mode = False
-            self.canvas.set_crop_mode(False)
+        self.crop_mode = False
+        self.canvas.set_crop_mode(False)
+        self.canvas.set_text_mode(False)
+        self.canvas.show_texts = True
         self.btn_pick.setChecked(False)
         self.preset_combo.setCurrentIndex(0)
         self.canvas.clear('正在處理…')
         self._sync_ui()
+        self._sync_tool_ui()
         self._render()
         self._update_history_actions()
         self._update_status()
@@ -594,6 +857,11 @@ class EditPage(QWidget):
         self.path = None
         self.alpha = None
         self._last_qimg = None
+        self.crop_mode = False
+        self.canvas.set_crop_mode(False)
+        self.canvas.set_text_mode(False)
+        self.canvas.texts = []
+        self._sync_tool_ui()
         self.canvas.clear('')
 
     def shutdown(self):
@@ -631,10 +899,12 @@ class EditPage(QWidget):
         self._changed()
 
     def reset_all(self):
-        geo = {k: self.params[k] for k in GEOMETRY_KEYS}
+        if self.crop_mode:
+            self._cancel_crop()
+        keep = {k: self.params[k] for k in LAYOUT_KEYS}
         self.params = default_params()
-        if QMessageBox.question(self, '全部重設', '是否同時重設旋轉與裁切？') != QMessageBox.Yes:
-            self.params.update(copy.deepcopy(geo))
+        if QMessageBox.question(self, '全部重設', '是否同時重設旋轉、裁切、尺寸與文字？') != QMessageBox.Yes:
+            self.params.update(copy.deepcopy(keep))
         self._sync_ui()
         self._changed()
 
@@ -655,6 +925,13 @@ class EditPage(QWidget):
         self._sync_levels_spins()
         self.curves_widget.set_curves(p['curves'])
         self._update_crop_buttons()
+        # text layers: the canvas paints (and edits) the very list stored in the parameters
+        self.canvas.texts = p['texts']
+        if self.canvas.sel_text >= len(p['texts']):
+            self.canvas.sel_text = -1
+        self.canvas.update()
+        self._refresh_text_list()
+        self._load_text_controls()
 
     def is_dirty(self):
         return self.engine is not None and self.params != self._saved_params
@@ -673,6 +950,8 @@ class EditPage(QWidget):
         def work():
             u8, hist, was_fast = eng.render(p, skip, fast)
             logical = eng.logical_size(p, skip)
+            if not skip and p.get('resize'):
+                u8, logical = _preview_resized(eng, p, u8, logical, was_fast)
             pre_hist = None
             if not was_fast:
                 pre = process(eng.base[::4, ::4], p, scale=eng.base_scale() / 4.0, stop_at='levels')
@@ -702,6 +981,7 @@ class EditPage(QWidget):
         if self.engine is None or self._last_qimg is None:
             return
         self._comparing = on
+        self.canvas.show_texts = not on
         if on:
             base = self.engine.base
             if base is not None:
@@ -845,7 +1125,9 @@ class EditPage(QWidget):
     # ================================================================== white balance picker
     def _pick_toggled(self, on):
         if on and self.crop_mode:
-            self.btn_crop.setChecked(False)
+            self._apply_crop()
+        if on and self.canvas.text_mode:
+            self.act_text.setChecked(False)
         self.canvas.pick_mode = on
         self.canvas._update_cursor()
         if on:
@@ -880,23 +1162,48 @@ class EditPage(QWidget):
             p['crop'] = transform_rect(p['crop'], ORIENT_OPS[op])
         if op in ('flip_h', 'flip_v'):
             p['straighten'] = -p['straighten']
+        rs = p.get('resize')
+        if rs and 'w' in rs and op in ('cw', 'ccw'):
+            p['resize'] = {'w': rs['h'], 'h': rs['w']}
         self._sync_ui()
         self._changed()
 
+    # ------------------------------------------------------------------ tools (crop / text)
+    def _sync_tool_ui(self):
+        """Toolbar check states and the panel page follow the active tool."""
+        tool = 'crop' if self.crop_mode else ('text' if self.canvas.text_mode else None)
+        for a, on in ((self.act_crop, tool == 'crop'), (self.act_text, tool == 'text')):
+            a.blockSignals(True)
+            a.setChecked(on)
+            a.blockSignals(False)
+        self.tool_stack.setCurrentIndex({None: 0, 'crop': 1, 'text': 2}[tool])
+        self._update_crop_buttons()
+
     def _crop_toggled(self, on):
         if self.engine is None:
+            self._sync_tool_ui()
             return
         if on:
+            if self.canvas.text_mode:
+                self._text_tool(False)
             self.btn_pick.setChecked(False)
             self.crop_mode = True
             self.canvas.set_crop_mode(True, self.params['crop'] or [0.0, 0.0, 1.0, 1.0])
             self._render()
             QTimer.singleShot(0, lambda: self._aspect_changed(self.aspect_combo.currentIndex(), keep_rect=True))
             self.flash('拖曳調整裁切範圍，Enter 套用、Esc 取消', 4000)
-        else:
-            if self.crop_mode:
-                self._apply_crop()
-        self._update_crop_buttons()
+        elif self.crop_mode:
+            self._apply_crop()
+        self._sync_tool_ui()
+        self._update_crop_size()
+
+    def _update_crop_size(self):
+        if not self.crop_mode or self.engine is None:
+            return
+        gw, gh = geometry_size(self.engine.full.width, self.engine.full.height, self.params, skip_crop=True)
+        x0, y0, x1, y1 = self.canvas.crop
+        self.crop_size_lbl.setText(f'裁切後尺寸：<b>{max(1, round((x1 - x0) * gw))} × '
+                                   f'{max(1, round((y1 - y0) * gh))}</b> px')
 
     def _aspect_changed(self, idx, keep_rect=False):
         _, a = ASPECTS[idx]
@@ -921,11 +1228,8 @@ class EditPage(QWidget):
             rect = None
         self.crop_mode = False
         self.canvas.set_crop_mode(False)
-        self.btn_crop.blockSignals(True)
-        self.btn_crop.setChecked(False)
-        self.btn_crop.blockSignals(False)
         self.params['crop'] = rect
-        self._update_crop_buttons()
+        self._sync_tool_ui()
         self._changed()
 
     def _cancel_crop(self):
@@ -933,16 +1237,14 @@ class EditPage(QWidget):
             return
         self.crop_mode = False
         self.canvas.set_crop_mode(False)
-        self.btn_crop.blockSignals(True)
-        self.btn_crop.setChecked(False)
-        self.btn_crop.blockSignals(False)
-        self._update_crop_buttons()
+        self._sync_tool_ui()
         self._render()
 
     def _clear_crop(self):
         if self.crop_mode:
             self.canvas.crop = [0.0, 0.0, 1.0, 1.0]
             self.canvas.update()
+            self._update_crop_size()
         if self.params['crop']:
             self.params['crop'] = None
             if not self.crop_mode:
@@ -952,7 +1254,223 @@ class EditPage(QWidget):
     def _update_crop_buttons(self):
         self.btn_crop_apply.setEnabled(self.crop_mode)
         self.btn_crop_cancel.setEnabled(self.crop_mode)
-        self.btn_crop_clear.setEnabled(self.crop_mode or bool(self.params.get('crop')))
+        has = self.crop_mode or bool(self.params.get('crop'))
+        self.btn_crop_clear.setEnabled(has)
+        self.btn_crop_clear2.setEnabled(bool(self.params.get('crop')))
+
+    # ------------------------------------------------------------------ resize
+    def _resize_dialog(self):
+        if self.engine is None:
+            return
+        if self.crop_mode:
+            self._apply_crop()
+        gw, gh = geometry_size(self.engine.full.width, self.engine.full.height, self.params)
+        dlg = ResizeDialog((gw, gh), self.params.get('resize'), self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        val = dlg.value()
+        if val == self.params.get('resize'):
+            return
+        self.params['resize'] = val
+        self._changed()
+        w, h = self._output_size()
+        self.flash(f'輸出尺寸：{w} × {h} px' if val else '已還原為原始尺寸', 4000)
+
+    def _clear_resize(self):
+        if self.params.get('resize'):
+            self.params['resize'] = None
+            self._changed()
+            self.flash('已還原為原始尺寸')
+
+    # ------------------------------------------------------------------ text layers
+    def _texts(self):
+        return self.params['texts']
+
+    def _sel_text(self):
+        i = self.canvas.sel_text
+        texts = self.params['texts']
+        return texts[i] if 0 <= i < len(texts) else None
+
+    def _text_tool(self, on):
+        if self.engine is None:
+            self._sync_tool_ui()
+            return
+        if on:
+            if self.crop_mode:
+                self._apply_crop()
+            self._ensure_text_page()
+            self.btn_pick.setChecked(False)
+            self.canvas.set_text_mode(True)
+            if self.params['texts'] and self.canvas.sel_text < 0:
+                self.canvas.select_text(len(self.params['texts']) - 1)
+            self._refresh_text_list()
+            self._load_text_controls()
+            self.canvas.setFocus()
+            self.flash('在影像上點一下即可新增文字', 4000)
+        else:
+            self._prune_blank_texts()
+            self.canvas.set_text_mode(False)
+        self._sync_tool_ui()
+
+    def _prune_blank_texts(self, keep_selected=False):
+        """Drop layers that never got any text (a click that added a layer, then nothing was typed)."""
+        texts = self.params['texts']
+        sel = self._sel_text()
+        keep = sel if keep_selected else None
+        kept = [t for t in texts if not is_blank(t) or t is keep]
+        if len(kept) == len(texts):
+            return
+        texts[:] = kept                      # in place: the canvas holds this list
+        self.canvas.sel_text = next((i for i, t in enumerate(kept) if t is sel), -1)
+        self._refresh_text_list()
+        self._load_text_controls()
+        self.canvas.update()
+        self._text_dirty()
+
+    def _add_text(self, x=0.5, y=0.5):
+        if self.engine is None:
+            return
+        if not self.canvas.text_mode:
+            self.act_text.setChecked(True)
+        self._prune_blank_texts()
+        t = new_text(x=round(float(x), 5), y=round(float(y), 5), **copy.deepcopy(self._text_style))
+        self._keep_inside(t)
+        self.params['texts'].append(t)
+        self.canvas.select_text(len(self.params['texts']) - 1)
+        self._refresh_text_list()
+        self._load_text_controls()
+        self._focus_text_edit()
+        self._text_dirty()
+
+    def _keep_inside(self, t):
+        """Shift a new layer so its box lies inside the image (a click near an edge would cut it off)."""
+        from .textlayer import polygon
+        W, H = self.canvas.logical_size()
+        if W <= 0 or H <= 0:
+            return
+        br = polygon(t, W, H).boundingRect()
+        if br.width() < W:
+            dx = max(0.0, -br.left()) - max(0.0, br.right() - W)
+            t['x'] = round(t['x'] + dx / W, 5)
+        if br.height() < H:
+            dy = max(0.0, -br.top()) - max(0.0, br.bottom() - H)
+            t['y'] = round(t['y'] + dy / H, 5)
+
+    def _duplicate_text(self):
+        t = self._sel_text()
+        if t is None:
+            return
+        c = copy.deepcopy(t)
+        c['x'] = round(min(1.0, c['x'] + 0.03), 5)
+        c['y'] = round(min(1.0, c['y'] + 0.03), 5)
+        self.params['texts'].append(c)
+        self.canvas.select_text(len(self.params['texts']) - 1)
+        self._refresh_text_list()
+        self._load_text_controls()
+        self._text_dirty()
+
+    def _delete_text(self):
+        i = self.canvas.sel_text
+        texts = self.params['texts']
+        if not (0 <= i < len(texts)):
+            return
+        del texts[i]
+        self.canvas.select_text(min(i, len(texts) - 1))
+        self._refresh_text_list()
+        self._load_text_controls()
+        self.canvas.setFocus()
+        self._text_dirty()
+
+    def _focus_text_edit(self):
+        self.text_edit.setFocus()
+        self.text_edit.selectAll()
+
+    def _on_text_selected(self, idx):
+        self._prune_blank_texts(keep_selected=True)
+        self._refresh_text_list()
+        self._load_text_controls()
+
+    def _on_text_moved(self):
+        t = self._sel_text()
+        if t is not None:
+            self.sl_text_size.setValue(t['size'])
+        self._update_status()
+
+    def _text_list_row(self, row):
+        if row != self.canvas.sel_text:
+            self.canvas.select_text(row)
+            self._prune_blank_texts(keep_selected=True)
+            self._load_text_controls()
+
+    def _refresh_text_list(self):
+        if self._text_page is None:
+            return
+        lw = self.text_list
+        lw.blockSignals(True)
+        lw.clear()
+        for t in self.params['texts']:
+            lw.addItem(text_label(t))
+        lw.setCurrentRow(self.canvas.sel_text)
+        lw.blockSignals(False)
+        has = self._sel_text() is not None
+        self.btn_text_dup.setEnabled(has)
+        self.btn_text_del.setEnabled(has)
+
+    def _load_text_controls(self):
+        if self._text_page is None:
+            return
+        t = self._sel_text()
+        self.text_box.setEnabled(t is not None)
+        src = normalized(t) if t is not None else dict(TEXT_DEFAULTS, **self._text_style)
+        widgets = (self.text_edit, self.font_combo, self.btn_bold, self.btn_italic, self.cb_text_shadow,
+                   self.cb_text_box, *self._align_btns.values())
+        for wdg in widgets:
+            wdg.blockSignals(True)
+        try:
+            txt = src.get('text', '') if t is not None else ''
+            if self.text_edit.toPlainText() != txt:
+                self.text_edit.setPlainText(txt)
+            self.font_combo.setCurrentFont(QFont(src['font']))
+            self.btn_bold.setChecked(bool(src['bold']))
+            self.btn_italic.setChecked(bool(src['italic']))
+            for k, b in self._align_btns.items():
+                b.setChecked(k == src['align'])
+            self.cb_text_shadow.setChecked(bool(src['shadow']))
+            self.cb_text_box.setChecked(bool(src['box']))
+        finally:
+            for wdg in widgets:
+                wdg.blockSignals(False)
+        self.sl_text_size.setValue(src['size'])
+        self.sl_text_opacity.setValue(src['opacity'])
+        self.sl_text_angle.setValue(src['angle'])
+        self.sl_text_stroke.setValue(src['stroke'])
+        self.sl_box_opacity.setValue(src['box_opacity'])
+        self.btn_text_color.setColor(src['color'])
+        self.btn_stroke_color.setColor(src['stroke_color'])
+        self.btn_box_color.setColor(src['box_color'])
+
+    def _set_text_prop(self, key, value):
+        if key in TEXT_STYLE_KEYS:
+            self._text_style[key] = value
+        t = self._sel_text()
+        if t is None or t.get(key) == value:
+            return
+        t[key] = value
+        if key == 'text':
+            item = self.text_list.item(self.canvas.sel_text)
+            if item is not None:
+                item.setText(text_label(t))
+        self._text_dirty()
+
+    def _quick_color(self, c):
+        self.btn_text_color.setColor(c)
+        self._set_text_prop('color', c)
+
+    def _text_dirty(self):
+        """Text layers are painted by the canvas, so a change only needs a repaint, not a re-render."""
+        self.canvas.update()
+        self._commit_timer.start()
+        self._update_status()
 
     # ================================================================== presets
     def _preset_activated(self, idx):
@@ -964,8 +1482,8 @@ class EditPage(QWidget):
         self.flash(f'已套用預設集：{name}')
 
     def _apply_preset_dict(self, d):
-        geo = {k: copy.deepcopy(self.params[k]) for k in GEOMETRY_KEYS}
-        newp = merge_params(default_params(), d)
+        geo = {k: copy.deepcopy(self.params[k]) for k in LAYOUT_KEYS}
+        newp = merge_params(default_params(), {k: v for k, v in d.items() if k not in LAYOUT_KEYS})
         newp.update(geo)
         self.params = newp
         self._sync_ui()
@@ -976,7 +1494,7 @@ class EditPage(QWidget):
         fn, _ = QFileDialog.getSaveFileName(self, '儲存預設集', os.path.join(d, '我的預設集.json'), 'JSON (*.json)')
         if not fn:
             return
-        data = {k: v for k, v in self.params.items() if k not in GEOMETRY_KEYS}
+        data = {k: v for k, v in self.params.items() if k not in LAYOUT_KEYS}
         try:
             with open(fn, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=1)
@@ -1000,23 +1518,14 @@ class EditPage(QWidget):
 
     # ================================================================== saving
     def _output_size(self):
-        w, h = self.engine.full.size
-        p = self.params
-        if p['orient'] in (5, 6, 7, 8):
-            w, h = h, w
-        if abs(p['straighten']) >= 0.01:
-            s = straighten_scale(w, h, p['straighten'])
-            w, h = int(round(w * s)), int(round(h * s))
-        if p['crop']:
-            x0, y0, x1, y1 = p['crop']
-            w, h = max(1, int(round((x1 - x0) * w))), max(1, int(round((y1 - y0) * h)))
-        return w, h
+        return output_size(self.engine.full.width, self.engine.full.height, self.params)
 
     def save(self, save_as=False) -> bool:
         if self.engine is None:
             return False
         if self.crop_mode:
             self._apply_crop()
+        self._prune_blank_texts()
         self._flush_commit()
         target = self.path
         ext = ext_of(target)
@@ -1087,6 +1596,7 @@ class EditPage(QWidget):
     def confirm_leave(self) -> bool:
         if self.crop_mode:
             self._apply_crop()
+        self._prune_blank_texts()
         if not self.is_dirty():
             return True
         box = QMessageBox(self)
@@ -1115,6 +1625,7 @@ class EditPage(QWidget):
     def cancel(self):
         if self.crop_mode:
             self._cancel_crop()
+        self._prune_blank_texts()
         if self.is_dirty():
             if QMessageBox.question(self, '取消編輯', '要放棄所有未儲存的調整嗎？') != QMessageBox.Yes:
                 return
@@ -1139,6 +1650,10 @@ class EditPage(QWidget):
         self.st_dims.setText(f'輸出 {w} × {h}')
         self.st_dirty.setText('● 已修改' if self.is_dirty() else '')
         self.st_zoom.setText(f"預覽 {self.canvas.zoom() * 100:.0f}%")
+        gw, gh = geometry_size(self.engine.full.width, self.engine.full.height, self.params)
+        rs = self.params.get('resize')
+        self.size_lbl.setText(f'尺寸：{gw} × {gh} px' + (f' → 輸出 {w} × {h} px' if rs else '（原始大小）'))
+        self.btn_resize_clear.setEnabled(bool(rs))
 
     def keyPressEvent(self, ev):
         k = ev.key()
@@ -1151,8 +1666,19 @@ class EditPage(QWidget):
         if k == Qt.Key_Escape:
             if self.crop_mode:
                 self._cancel_crop()
+            elif self.canvas.text_mode:
+                if self.canvas.sel_text >= 0:
+                    self.canvas.select_text(-1)
+                    self._on_text_selected(-1)
+                    self.canvas.setFocus()
+                else:
+                    self.act_text.setChecked(False)
             elif self.btn_pick.isChecked():
                 self.btn_pick.setChecked(False)
+            return
+        if (k == Qt.Key_Delete and self.canvas.text_mode and self._sel_text() is not None
+                and not self.text_edit.hasFocus()):
+            self._delete_text()
             return
         super().keyPressEvent(ev)
 

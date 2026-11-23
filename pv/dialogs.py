@@ -4,14 +4,54 @@ from __future__ import annotations
 import os
 import time
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal, QSize, QRectF
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit,
                                QSpinBox, QComboBox, QDialogButtonBox, QTableWidget, QTableWidgetItem,
                                QHeaderView, QPushButton, QFileDialog, QCheckBox, QProgressDialog,
-                               QMessageBox, QApplication, QRadioButton, QButtonGroup)
+                               QMessageBox, QApplication, QRadioButton, QButtonGroup, QToolButton)
 
 from . import __version__
 from .common import APP_TITLE, unique_path
+
+
+class ColorButton(QToolButton):
+    """Colour swatch button; click to choose a colour."""
+    colorChanged = Signal(str)
+
+    def __init__(self, color='#ffffff', title='選擇顏色', parent=None):
+        super().__init__(parent)
+        self._color = QColor(color).name()
+        self._title = title
+        self.setToolTip(title)
+        self.setIconSize(QSize(30, 16))
+        self.clicked.connect(self._pick)
+        self._refresh()
+
+    def color(self) -> str:
+        return self._color
+
+    def setColor(self, c):
+        self._color = QColor(c).name()
+        self._refresh()
+
+    def _refresh(self):
+        pm = QPixmap(60, 32)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QPen(QColor('#8a8a90'), 2))
+        p.setBrush(QColor(self._color))
+        p.drawRoundedRect(QRectF(1, 1, 58, 30), 6, 6)
+        p.end()
+        self.setIcon(QIcon(pm))
+
+    def _pick(self):
+        from PySide6.QtWidgets import QColorDialog
+        c = QColorDialog.getColor(QColor(self._color), self, self._title)
+        if c.isValid():
+            self.setColor(c.name())
+            self.colorChanged.emit(self._color)
 
 
 class RenameDialog(QDialog):
@@ -301,6 +341,134 @@ class SaveOptionsDialog(QDialog):
         return self.quality.value(), (self.long.value() if self.resize_cb.isChecked() else 0)
 
 
+class ResizeDialog(QDialog):
+    """Output size of the edited image.
+
+    value() is None (keep the size), {'long': px} (aspect ratio kept, so it follows later crops and
+    rotations) or {'w': px, 'h': px} (exact size, may stretch).
+    """
+    PRESETS = [('3840（4K）', 3840), ('2560', 2560), ('1920（Full HD）', 1920), ('1600', 1600), ('1280', 1280),
+               ('1080（社群貼文）', 1080), ('1024', 1024), ('800', 800), ('640', 640)]
+
+    def __init__(self, base, current=None, parent=None):
+        from PySide6.QtWidgets import QDoubleSpinBox
+        super().__init__(parent)
+        self.setWindowTitle('調整影像尺寸')
+        self.setMinimumWidth(440)
+        self.bw, self.bh = max(1, base[0]), max(1, base[1])
+        self._busy = False
+        v = QVBoxLayout(self)
+        v.addWidget(QLabel(f'目前尺寸（旋轉、裁切後）：<b>{self.bw} × {self.bh}</b> px'))
+        form = QFormLayout()
+        self.w = QSpinBox()
+        self.h = QSpinBox()
+        for sp in (self.w, self.h):
+            sp.setRange(1, 30000)
+            sp.setSuffix(' px')
+            sp.setKeyboardTracking(True)
+        self.pct = QDoubleSpinBox()
+        self.pct.setRange(1.0, 1000.0)
+        self.pct.setDecimals(1)
+        self.pct.setSuffix(' %')
+        self.lock = QCheckBox('保持長寬比')
+        form.addRow('寬度：', self.w)
+        form.addRow('高度：', self.h)
+        form.addRow('比例：', self.pct)
+        form.addRow('', self.lock)
+        quick = QHBoxLayout()
+        for pc in (25, 50, 75, 100, 200):
+            b = QPushButton(f'{pc}%')
+            b.clicked.connect(lambda _=False, pc=pc: self._set_pct(pc))
+            quick.addWidget(b)
+        quick.addStretch(1)
+        form.addRow('快速：', quick)
+        self.preset = QComboBox()
+        self.preset.addItem('選擇長邊尺寸…')
+        for label, _ in self.PRESETS:
+            self.preset.addItem(label)
+        self.preset.activated.connect(self._preset_chosen)
+        form.addRow('常用長邊：', self.preset)
+        v.addLayout(form)
+        self.out_lbl = QLabel()
+        self.out_lbl.setWordWrap(True)
+        v.addWidget(self.out_lbl)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.Reset)
+        bb.button(QDialogButtonBox.Ok).setText('套用')
+        bb.button(QDialogButtonBox.Reset).setText('還原原始尺寸')
+        bb.button(QDialogButtonBox.Reset).clicked.connect(lambda: self._set_size(self.bw, self.bh))
+        bb.accepted.connect(self.accept)
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+
+        from .imageops import resize_target
+        cw, ch = resize_target(self.bw, self.bh, current) or (self.bw, self.bh)
+        self.lock.setChecked(not current or 'long' in current)
+        self._set_size(cw, ch)
+        self.w.valueChanged.connect(lambda _v: self._edited('w'))
+        self.h.valueChanged.connect(lambda _v: self._edited('h'))
+        self.pct.valueChanged.connect(lambda _v: self._edited('pct'))
+        self.lock.toggled.connect(lambda on: on and self._edited('w'))
+        self.w.setFocus()
+        self.w.selectAll()
+
+    def _set_size(self, w, h):
+        self._busy = True
+        self.w.setValue(int(w))
+        self.h.setValue(int(h))
+        self.pct.setValue(round(w / self.bw * 100.0, 1))
+        self._busy = False
+        self._update_label()
+
+    def _set_pct(self, pc):
+        self._set_size(max(1, round(self.bw * pc / 100.0)), max(1, round(self.bh * pc / 100.0)))
+
+    def _preset_chosen(self, idx):
+        if idx <= 0:
+            return
+        long_side = self.PRESETS[idx - 1][1]
+        s = long_side / float(max(self.bw, self.bh))
+        self.lock.setChecked(True)
+        self._set_size(max(1, round(self.bw * s)), max(1, round(self.bh * s)))
+        self.preset.setCurrentIndex(0)
+
+    def _edited(self, which):
+        if self._busy:
+            return
+        self._busy = True
+        if which == 'pct':
+            s = self.pct.value() / 100.0
+            self.w.setValue(max(1, round(self.bw * s)))
+            self.h.setValue(max(1, round(self.bh * s)))
+        elif self.lock.isChecked():
+            if which == 'w':
+                self.h.setValue(max(1, round(self.w.value() * self.bh / self.bw)))
+            else:
+                self.w.setValue(max(1, round(self.h.value() * self.bw / self.bh)))
+            self.pct.setValue(round(self.w.value() / self.bw * 100.0, 1))
+        else:
+            self.pct.setValue(round(self.w.value() / self.bw * 100.0, 1))
+        self._busy = False
+        self._update_label()
+
+    def _update_label(self):
+        w, h = self.w.value(), self.h.value()
+        mp = w * h / 1e6
+        txt = f'輸出尺寸：<b>{w} × {h}</b> px（約 {mp:.1f} 百萬像素）'
+        if w > self.bw or h > self.bh:
+            txt += '<br><span style="color:#ffb347">放大影像會讓畫質變得較模糊。</span>'
+        if not self.lock.isChecked() and abs(w / h - self.bw / self.bh) > 0.01:
+            txt += '<br><span style="color:#ffb347">長寬比與原圖不同，影像會被拉伸。</span>'
+        self.out_lbl.setText(txt)
+
+    def value(self):
+        w, h = self.w.value(), self.h.value()
+        if (w, h) == (self.bw, self.bh):
+            return None
+        if self.lock.isChecked():
+            return {'long': max(w, h)}
+        return {'w': w, 'h': h}
+
+
 class SettingsDialog(QDialog):
     """Preferences. Font size changes are previewed live on the whole app; Cancel restores the old size."""
     PRESETS = [('小', 8.5), ('標準', 9.5), ('大', 11.0), ('特大', 13.0)]
@@ -398,6 +566,7 @@ SHORTCUTS_HTML = """
 <tr><td><b>Ctrl+滾輪</b></td><td>調整縮圖大小</td></tr>
 <tr><td><b>F5</b></td><td>重新整理</td></tr>
 <tr><td><b>拖曳縮圖到資料夾</b></td><td>移動（同一磁碟）；按住 Ctrl 複製、Shift 移動</td></tr>
+<tr><td><b>選取多張 → 右鍵「拼接圖片」</b></td><td>往下、往右或往左接成一張大圖</td></tr>
 </table>
 <h3>檢視模式</h3>
 <table cellspacing=4>
@@ -424,7 +593,10 @@ SHORTCUTS_HTML = """
 <tr><td><b>Ctrl+Z / Ctrl+Y</b></td><td>復原 / 取消復原</td></tr>
 <tr><td><b>按住 \\ 或「比較」按鈕</b></td><td>顯示原圖</td></tr>
 <tr><td><b>雙擊滑桿</b></td><td>重設該項數值</td></tr>
-<tr><td><b>Enter / Esc</b></td><td>裁切時：套用 / 取消</td></tr>
+<tr><td><b>C</b></td><td>裁切（Enter 套用、Esc 取消）</td></tr>
+<tr><td><b>Ctrl+R</b></td><td>調整影像尺寸</td></tr>
+<tr><td><b>T</b></td><td>文字：點一下影像新增；拖曳移動、拖曳右下角縮放</td></tr>
+<tr><td><b>方向鍵 / Delete</b></td><td>文字：微調位置（Shift 加大）/ 刪除</td></tr>
 </table>
 """
 
