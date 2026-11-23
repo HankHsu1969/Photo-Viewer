@@ -415,6 +415,7 @@ class ManagePage(QWidget):
         self.act_batch_resize = A('批次調整大小／轉檔…', self._batch_resize, None, G.PHOTO)
         self.act_stitch = A('拼接圖片…', self._stitch, None, G.STITCH,
                             tip='把選取的多張圖片往下、往右或往左接成一張大圖')
+        self.act_stitch.setIconText('拼接')
         self.act_preview = A('顯示預覽與屬性窗格', self._toggle_preview, 'F9', G.PREVIEW, checkable=True)
         self.act_bigger = A('放大縮圖', lambda: self.size_slider.setValue(self.size_slider.value() + 20), 'Ctrl+=')
         self.act_smaller = A('縮小縮圖', lambda: self.size_slider.setValue(self.size_slider.value() - 20), 'Ctrl+-')
@@ -458,12 +459,12 @@ class ManagePage(QWidget):
         self.path_edit.returnPressed.connect(lambda: self.navigate(self.path_edit.text().strip().strip('"')))
         tb.addWidget(self.path_edit)
         tb.addSeparator()
-        for a in (self.act_view, self.act_edit):
+        for a in (self.act_view, self.act_edit, self.act_stitch):
             tb.addAction(a)
             btn = tb.widgetForAction(a)
             if isinstance(btn, QToolButton):
                 btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        tb.addActions([self.act_rot_l, self.act_rot_r, self.act_delete, self.act_stitch])
+        tb.addActions([self.act_rot_l, self.act_rot_r, self.act_delete])
         tb.addSeparator()
         self.sort_combo = QComboBox()
         for label, _ in self.SORTS:
@@ -852,6 +853,7 @@ class ManagePage(QWidget):
         else:
             m.addAction(self.act_view)
             m.addAction(self.act_edit)
+            m.addAction(self.act_stitch)
             m.setDefaultAction(self.act_view)
             m.addSeparator()
             m.addActions([self.act_rot_l, self.act_rot_r])
@@ -860,8 +862,6 @@ class ManagePage(QWidget):
             m.addSeparator()
             m.addActions([self.act_copy_to, self.act_move_to, self.act_rename, self.act_delete])
             m.addSeparator()
-            if sum(1 for e in ents if not e.is_dir) >= 2:
-                m.addAction(self.act_stitch)
             m.addActions([self.act_batch_rename, self.act_batch_resize])
             m.addSeparator()
             m.addActions([self.act_copy_path, self.act_reveal])
@@ -974,13 +974,12 @@ class ManagePage(QWidget):
         self.reload(keep_selection=True)
 
     def _stitch(self):
-        imgs = self.selected_images()
-        if len(imgs) < 2:
-            QMessageBox.information(self, '拼接圖片', '請先選取兩張以上的圖片（按住 Ctrl 或 Shift 點選縮圖），'
-                                                  '再選擇「拼接圖片」。')
-            return
+        self.open_stitch(self.selected_images(), self.folder)
+
+    def open_stitch(self, paths, folder=None):
+        """Stitch dialog for these images (more can be added in the dialog); also used by the editor."""
         from .stitch import StitchDialog
-        dlg = StitchDialog(imgs, self.folder, self.settings, self)
+        dlg = StitchDialog(list(paths), folder or self.folder, self.settings, self)
         if dlg.exec() != StitchDialog.Accepted or not dlg.output:
             return
         out = dlg.output

@@ -126,21 +126,14 @@ class StitchDialog(QDialog):
         self.list.setDragDropMode(QAbstractItemView.InternalMove)
         self.list.setDefaultDropAction(Qt.MoveAction)
         self.list.setMinimumWidth(240)
-        for p in paths:
-            size = _image_size(p)
-            if size is None:
-                continue
-            self._sizes[p] = size
-            th = read_qimage(p, 240)
-            self._thumbs[p] = th
-            it = QListWidgetItem(os.path.basename(p))
-            it.setData(Qt.UserRole, p)
-            it.setToolTip(f'{p}\n{size[0]} × {size[1]} px')
-            if not th.isNull():
-                it.setIcon(QIcon(QPixmap.fromImage(th)))
-            self.list.addItem(it)
+        self._folder = folder or (os.path.dirname(paths[0]) if paths else '')
+        self._add_paths(paths)
         self.list.model().rowsMoved.connect(lambda *_: self._update())
         left.addWidget(self.list, 1)
+        add = QPushButton(glyph_icon(G.ADD), ' 加入圖片…')
+        add.setToolTip('從任何資料夾加入更多圖片')
+        add.clicked.connect(self._add_files)
+        left.addWidget(add)
         row = QHBoxLayout()
         for text, fn in (('上移', lambda: self._move(-1)), ('下移', lambda: self._move(1)),
                          ('反轉', self._reverse), ('移除', self._remove)):
@@ -221,7 +214,7 @@ class StitchDialog(QDialog):
         oform.addRow('格式：', frow)
         orow = QHBoxLayout()
         ext = '.png' if self.fmt.currentIndex() == 1 else '.jpg'
-        self.out = QLineEdit(os.path.join(folder or os.path.dirname(paths[0]),
+        self.out = QLineEdit(os.path.join(self._folder or os.path.expanduser('~'),
                                           time.strftime('拼接_%Y%m%d_%H%M%S') + ext))
         b = QPushButton('瀏覽…')
         b.clicked.connect(self._browse)
@@ -256,6 +249,37 @@ class StitchDialog(QDialog):
         return plan_layout(sizes, self.direction(), FITS[max(0, self.fit.currentIndex())], self.gap.value(),
                            self.border.isChecked())
 
+    def _add_paths(self, paths):
+        bad = []
+        for p in paths:
+            size = self._sizes.get(p) or _image_size(p)
+            if size is None:
+                bad.append(os.path.basename(p))
+                continue
+            self._sizes[p] = size
+            if p not in self._thumbs:
+                self._thumbs[p] = read_qimage(p, 240)
+            th = self._thumbs[p]
+            it = QListWidgetItem(os.path.basename(p))
+            it.setData(Qt.UserRole, p)
+            it.setToolTip(f'{p}\n{size[0]} × {size[1]} px')
+            if not th.isNull():
+                it.setIcon(QIcon(QPixmap.fromImage(th)))
+            self.list.addItem(it)
+        if bad:
+            QMessageBox.warning(self, '拼接圖片', '無法讀取：\n' + '\n'.join(bad[:15]))
+
+    def _add_files(self):
+        from .common import IMAGE_EXTS
+        pats = ' '.join('*' + e for e in sorted(IMAGE_EXTS))
+        cur = self.paths()
+        start = os.path.dirname(cur[-1]) if cur else self._folder
+        fns, _ = QFileDialog.getOpenFileNames(self, '加入圖片', start, f'圖片 ({pats});;所有檔案 (*)')
+        if fns:
+            self._add_paths(fns)
+            self.list.setCurrentRow(self.list.count() - 1)
+            self._update()
+
     def _direction_changed(self):
         d = self.direction()
         dim = '寬度' if d == 'down' else '高度'
@@ -284,8 +308,10 @@ class StitchDialog(QDialog):
         self.preview.bg = QColor(self.bg.color())
         self.preview.update()
         n = len(paths)
+        self.setWindowTitle(f'拼接圖片（{n} 張）')
         if n < 2:
-            self.info.setText('<span style="color:#ffb347">至少需要兩張圖片。</span>')
+            self.info.setText('<span style="color:#ffb347">至少需要兩張圖片：按左下角「加入圖片…」加入，'
+                              '或在管理畫面按住 Ctrl 先選取多張再拼接。</span>')
         else:
             txt = f'{n} 張 → 輸出尺寸：<b>{W} × {H}</b> px（約 {W * H / 1e6:.1f} 百萬像素）'
             if self.fmt.currentIndex() == 0 and max(W, H) > JPEG_MAX:
@@ -310,7 +336,7 @@ class StitchDialog(QDialog):
 
     def _remove(self):
         r = self.list.currentRow()
-        if r >= 0 and self.list.count() > 2:
+        if r >= 0:
             self.list.takeItem(r)
             self._update()
 

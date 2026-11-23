@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
             self.stack.addWidget(self._edit)
             self._edit.finished.connect(self._edit_finished)
             self._edit.saved.connect(self._edit_saved)
+            self._edit.stitchRequested.connect(lambda p: self.manage.open_stitch([p], os.path.dirname(p)))
             self._scale_icons(self._edit)
         return self._edit
 

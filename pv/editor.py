@@ -141,6 +141,7 @@ class SaveWorker(QThread):
 class EditPage(QWidget):
     finished = Signal(str)
     saved = Signal(str)
+    stitchRequested = Signal(str)     # open the stitch dialog starting with this image
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -266,6 +267,8 @@ class EditPage(QWidget):
         self.act_crop = A('裁切', self._crop_toggled, 'C', G.CROP, tip='裁切影像', checkable=True)
         self.act_resize = A('尺寸', self._resize_dialog, 'Ctrl+R', G.RESIZE, tip='調整影像尺寸（寬 × 高）')
         self.act_text = A('文字', self._text_tool, 'T', G.TEXT, tip='在影像上加入文字', checkable=True)
+        self.act_stitch = A('拼接', self._request_stitch, None, G.STITCH,
+                            tip='把這張和其他圖片往下、往右或往左拼接成一張大圖')
         m_file = QMenu('檔案(&F)', self)
         m_file.addActions([self.act_save, self.act_save_as])
         m_file.addSeparator()
@@ -276,6 +279,8 @@ class EditPage(QWidget):
         m_edit.addAction(self.act_reset)
         m_tools = QMenu('工具(&T)', self)
         m_tools.addActions([self.act_crop, self.act_resize, self.act_text])
+        m_tools.addSeparator()
+        m_tools.addAction(self.act_stitch)
         m_view = QMenu('檢視(&V)', self)
         m_view.addActions([self.act_fit, self.act_100])
         self.menus = [m_file, m_edit, m_tools, m_view]
@@ -298,7 +303,7 @@ class EditPage(QWidget):
         tb.addWidget(self.btn_compare)
         tb.addActions([self.act_fit, self.act_100])
         tb.addSeparator()
-        tb.addActions([self.act_crop, self.act_resize, self.act_text])
+        tb.addActions([self.act_crop, self.act_resize, self.act_text, self.act_stitch])
         tb.addSeparator()
         # frequently recognised icons go icon-only so the new tools fit on the toolbar
         for a in (self.act_undo, self.act_redo, self.act_fit, self.act_100):
@@ -1281,6 +1286,20 @@ class EditPage(QWidget):
             self.params['resize'] = None
             self._changed()
             self.flash('已還原為原始尺寸')
+
+    # ------------------------------------------------------------------ stitch
+    def _request_stitch(self):
+        if self.engine is None or not self.path:
+            return
+        if self.crop_mode:
+            self._apply_crop()
+        self._prune_blank_texts()
+        if self.is_dirty():
+            r = QMessageBox.question(self, '拼接圖片', '這張影像的調整尚未儲存，拼接時會使用檔案目前的內容。\n\n要先儲存嗎？',
+                                     QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel, QMessageBox.Yes)
+            if r == QMessageBox.Cancel or (r == QMessageBox.Yes and not self.save(False)):
+                return
+        self.stitchRequested.emit(self.path)
 
     # ------------------------------------------------------------------ text layers
     def _texts(self):

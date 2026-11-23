@@ -566,7 +566,7 @@ SHORTCUTS_HTML = """
 <tr><td><b>Ctrl+滾輪</b></td><td>調整縮圖大小</td></tr>
 <tr><td><b>F5</b></td><td>重新整理</td></tr>
 <tr><td><b>拖曳縮圖到資料夾</b></td><td>移動（同一磁碟）；按住 Ctrl 複製、Shift 移動</td></tr>
-<tr><td><b>選取多張 → 右鍵「拼接圖片」</b></td><td>往下、往右或往左接成一張大圖</td></tr>
+<tr><td><b>工具列「拼接」/ 右鍵「拼接圖片」</b></td><td>把選取的圖片往下、往右或往左接成一張大圖（可再加入其他圖片）</td></tr>
 </table>
 <h3>檢視模式</h3>
 <table cellspacing=4>
@@ -597,6 +597,7 @@ SHORTCUTS_HTML = """
 <tr><td><b>Ctrl+R</b></td><td>調整影像尺寸</td></tr>
 <tr><td><b>T</b></td><td>文字：點一下影像新增；拖曳移動、拖曳右下角縮放</td></tr>
 <tr><td><b>方向鍵 / Delete</b></td><td>文字：微調位置（Shift 加大）/ 刪除</td></tr>
+<tr><td><b>工具列「拼接」</b></td><td>以這張為第一張，加入其他圖片拼接成大圖</td></tr>
 </table>
 """
 
