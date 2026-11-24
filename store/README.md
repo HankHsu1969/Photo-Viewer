@@ -25,7 +25,7 @@
    - `Package/Identity/Publisher`（`CN=` 開頭）
    - `Package/Properties/PublisherDisplayName`
 
-把這三個值交給 Claude，或填進 `packaging/msix/identity.json`。
+把這三個值交給 Claude，或照 `packaging/msix/identity.json` 的格式填進 `packaging/msix/identity.local.json`（這個檔不會傳上 GitHub，因為發行者名稱是你的本名）。
 
 ## 3. 產生上架用的 MSIX 套件
 

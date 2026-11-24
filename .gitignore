@@ -9,3 +9,6 @@ dist/
 # temp files written during atomic saves / rotations
 *.pvtmp
 tools/
+
+# Store identity with the real publisher name (see packaging/build_msix.py)
+packaging/msix/identity.local.json

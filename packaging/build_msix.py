@@ -4,8 +4,9 @@ Needs the built app in dist\\PhotoViewer (run build.bat first) and the Windows S
 (makeappx.exe / makepri.exe). They are looked up in tools\\winsdk (the Microsoft.Windows.SDK.BuildTools
 NuGet package, extracted), then in the installed Windows Kits.
 
-Store identity values come from packaging\\msix\\identity.json (Partner Center > Product identity).
-With the placeholder values the package is only a test build and is named *-TEST.msix.
+Store identity values (Partner Center > Product identity) come from packaging\\msix\\identity.local.json,
+which is gitignored so the publisher name stays out of the public repo. Without it, the placeholder
+values in identity.json are used and the package is only a test build named *-TEST.msix.
 """
 import glob
 import json
@@ -107,7 +108,9 @@ def run(cmd):
 def main():
     if not os.path.exists(os.path.join(APP, 'PhotoViewer.exe')):
         sys.exit('dist\\PhotoViewer not found: run build.bat first')
-    with open(os.path.join(ROOT, 'packaging', 'msix', 'identity.json'), encoding='utf-8') as f:
+    msix_dir = os.path.join(ROOT, 'packaging', 'msix')
+    local = os.path.join(msix_dir, 'identity.local.json')     # real values, kept out of git
+    with open(local if os.path.exists(local) else os.path.join(msix_dir, 'identity.json'), encoding='utf-8') as f:
         ident = json.load(f)
     test = 'PLACEHOLDER' in ident['name'] or 'PLACEHOLDER' in ident['publisher_display'] \
         or ident['publisher'].startswith('CN=00000000')
@@ -138,7 +141,7 @@ def main():
     run([makeappx, 'pack', '/o', '/h', 'SHA256', '/d', LAYOUT, '/p', pkg])
     print(f'package: {pkg}  ({os.path.getsize(pkg):,} bytes)')
     if test:
-        print('NOTE: placeholder identity in packaging\\msix\\identity.json - test build only, not for upload.')
+        print('NOTE: no packaging\\msix\\identity.local.json - placeholder identity, test build only, not for upload.')
 
 
 if __name__ == '__main__':
