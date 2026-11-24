@@ -1,5 +1,5 @@
 @echo off
-rem Photo Viewer launcher. Drag an image or folder onto this file, or double-click it.
+rem Kirapix launcher. Drag an image or folder onto this file, or double-click it.
 cd /d "%~dp0"
 where pythonw >nul 2>nul
 if %errorlevel%==0 (

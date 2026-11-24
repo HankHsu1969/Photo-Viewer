@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy these three values from Partner Center > Kirapix > Product management > Product identity after reserving the name. The placeholders below only allow a test build.",
+  "name": "Kirapix.PLACEHOLDER",
+  "publisher": "CN=00000000-0000-0000-0000-000000000000",
+  "publisher_display": "PLACEHOLDER"
+}

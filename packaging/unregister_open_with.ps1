@@ -15,8 +15,8 @@ Remove-Item -LiteralPath 'HKCU:\Software\PhotoViewer\Capabilities' -Recurse -For
 $root = Get-Item -LiteralPath 'HKCU:\Software\PhotoViewer'
 if ($root -and $root.SubKeyCount -eq 0 -and $root.ValueCount -eq 0) { Remove-Item -LiteralPath 'HKCU:\Software\PhotoViewer' -Force }
 Remove-ItemProperty -LiteralPath 'HKCU:\Software\RegisteredApplications' -Name 'PhotoViewer' -Force
-foreach ($n in 'Photo Viewer.lnk', 'Photo Viewer 看圖.lnk') { Remove-Item -LiteralPath (Join-Path ([Environment]::GetFolderPath('Programs')) $n) -Force }
+foreach ($n in 'Kirapix.lnk', 'Photo Viewer.lnk', 'Photo Viewer 看圖.lnk') { Remove-Item -LiteralPath (Join-Path ([Environment]::GetFolderPath('Programs')) $n) -Force }
 
 Add-Type -Namespace PV -Name Shell -MemberDefinition '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int e, uint f, System.IntPtr a, System.IntPtr b);'
 [PV.Shell]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
-Write-Host '已移除 Photo Viewer 的開啟方式註冊與開始功能表捷徑。'
+Write-Host '已移除 Kirapix 的開啟方式註冊與開始功能表捷徑。'

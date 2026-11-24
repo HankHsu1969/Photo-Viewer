@@ -1,4 +1,4 @@
-"""Dark ACDSee-like theme."""
+"""Dark theme."""
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPalette, QColor, QFont
 from PySide6.QtWidgets import QProxyStyle, QStyle, QStyleFactory

@@ -1,20 +1,20 @@
-# Photo Viewer 與 Quick Viewer
+# Kirapix
 
-仿 ACDSee 操作方式的快速看圖、相片管理與影像編輯工具（Python + PySide6 + NumPy + Pillow）。
+Windows 上的快速看圖、相片管理與影像編輯工具，操作方式與常見的專業看圖軟體相近（Python + PySide6 + NumPy + Pillow）。
 
 由兩個程式組成，共用同一個程式資料夾：
 
 | 程式 | 用途 | 啟動時間 |
 |---|---|---|
-| **Quick Viewer**（`QuickViewer.exe`） | 快速看圖：在檔案總管雙擊圖片時開啟。只載入最精簡的 Qt 繪圖模組，←/→ 立即換圖 | 約 0.5 秒 |
-| **Photo Viewer**（`PhotoViewer.exe`） | 管理與修圖：一個視窗、三種模式，右上角切換：**管理 / 檢視 / 編輯** | 約 1 秒 |
+| **Kirapix Quick**（`QuickViewer.exe`） | 快速看圖：在檔案總管雙擊圖片時開啟。只載入最精簡的 Qt 繪圖模組，←/→ 立即換圖 | 約 0.5 秒 |
+| **Kirapix**（`PhotoViewer.exe`） | 管理與修圖：一個視窗、三種模式，右上角切換：**管理 / 檢視 / 編輯** | 約 1 秒 |
 
-在 Quick Viewer 中**雙擊影像或按 Enter** → 開啟 Photo Viewer 的管理模式並選取這張；**按 E** → 直接進入編輯。
+在 Kirapix Quick 中**雙擊影像或按 Enter** → 開啟 Kirapix 的管理模式並選取這張；**按 E** → 直接進入編輯。
 
-## Quick Viewer（快速看圖）
+## Kirapix Quick（快速看圖）
 
 - **← / →**、滾輪、空白鍵、PgUp/PgDn、Home/End：上一張 / 下一張（前後幾張已預先載入）
-- **雙擊 / Enter**：開啟 Photo Viewer 管理；**E**：開啟 Photo Viewer 編輯
+- **雙擊 / Enter**：開啟 Kirapix 管理；**E**：開啟 Kirapix 編輯
 - Ctrl+滾輪、+ / -：縮放（放大超過螢幕大小時才載入原始解析度）；`0` 符合視窗、`1` 實際大小；拖曳平移
 - F / F11 全螢幕、I 顯示資訊、`[` / `]` 旋轉（JPEG 無損）、Delete 移到資源回收筒、Ctrl+C 複製、Ctrl+0~5 評等、Esc 關閉
 
@@ -32,7 +32,7 @@ python main.py
 python quickviewer.py "C:\path\to\photo.jpg"
 ```
 
-- `main.py` 另接受 `--manage <圖片>`（開管理並選取）與 `--edit <圖片>`（直接編輯），Quick Viewer 就是用這兩個參數交接給 Photo Viewer。
+- `main.py` 另接受 `--manage <圖片>`（開管理並選取）與 `--edit <圖片>`（直接編輯），Kirapix Quick 就是用這兩個參數交接給 Kirapix。
 - 直接雙擊 `PhotoViewer.bat` 也可以啟動（不會出現命令列視窗）。
 - 把**圖片**拖到 `PhotoViewer.bat` 上 → 直接進入檢視模式，←/→ 瀏覽同資料夾。
 - 把**資料夾**拖到 `PhotoViewer.bat` 上 → 在管理模式開啟該資料夾。
@@ -40,24 +40,24 @@ python quickviewer.py "C:\path\to\photo.jpg"
 
 ## 安裝檔（建議）
 
-`dist\installer\PhotoViewer-Setup-1.3.0.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
+`dist\installer\Kirapix-Setup-1.4.0.exe`（約 28 MB）—— 繁體中文安裝精靈，不需要系統管理員權限：
 
 - 安裝到 `%LOCALAPPDATA%\Programs\PhotoViewer`（即 `C:\Users\<你的帳號>\AppData\Local\Programs\PhotoViewer`），可在精靈中更改
 - 建立開始功能表捷徑；可選建立桌面捷徑
-- 可選「加入圖片的開啟檔案清單」（預設勾選）—— 雙擊圖片會用 Quick Viewer 開啟，開始功能表的「Photo Viewer」捷徑則開啟管理與修圖程式
+- 可選「加入圖片的開啟檔案清單」（預設勾選）—— 雙擊圖片會用 Kirapix Quick 開啟，開始功能表的「Kirapix」捷徑則開啟管理與修圖程式
 - 出現在「設定 > 應用程式」中，可從那裡解除安裝；解除安裝會移除程式、捷徑與登錄項目，但保留你的設定、評等與縮圖快取（`%APPDATA%\PhotoViewer`、`%LOCALAPPDATA%\PhotoViewer`）
-- 安裝新版本時直接執行新的安裝檔即可（會自動關閉執行中的 Photo Viewer）
+- 安裝新版本時直接執行新的安裝檔即可（會自動關閉執行中的 Kirapix）
 
 ## 免安裝版與手動設定「開啟方式」
 
 免安裝版在 `dist\PhotoViewer\`（整個資料夾一起用，約 96 MB）：
 
-- `QuickViewer.exe` —— Quick Viewer 快速看圖，把圖片拖上去即可
-- `PhotoViewer.exe` —— Photo Viewer 管理與修圖
-- `Register-OpenWith.bat` —— 把 Quick Viewer 加入圖片的「開啟檔案」清單、開始功能表捷徑，並列入「設定 > 應用程式 > 預設應用程式」（只寫入目前使用者的設定）
+- `QuickViewer.exe` —— Kirapix Quick 快速看圖，把圖片拖上去即可
+- `PhotoViewer.exe` —— Kirapix 管理與修圖
+- `Register-OpenWith.bat` —— 把 Kirapix Quick 加入圖片的「開啟檔案」清單、開始功能表捷徑，並列入「設定 > 應用程式 > 預設應用程式」（只寫入目前使用者的設定）
 - `Unregister-OpenWith.bat` —— 完整移除上述註冊
 
-Windows 不允許程式自行設為預設，第一次請手動指定：對任一張圖片按右鍵 →「開啟檔案」→「選擇其他應用程式」→ **Quick Viewer** → 「一律使用」。之後在檔案總管雙擊圖片就會直接用它開啟。
+Windows 不允許程式自行設為預設，第一次請手動指定：對任一張圖片按右鍵 →「開啟檔案」→「選擇其他應用程式」→ **Kirapix Quick** → 「一律使用」。之後在檔案總管雙擊圖片就會直接用它開啟。
 
 若搬移 `dist\PhotoViewer` 資料夾，請在新位置重新執行 `Register-OpenWith.bat`。
 
@@ -75,7 +75,7 @@ winget install JRSoftware.InnoSetup
 build.bat
 ```
 
-## Photo Viewer：檢視模式
+## Kirapix：檢視模式
 
 - **← / →** 上一張 / 下一張（也可用滑鼠滾輪、空白鍵、PgUp/PgDn、Home/End）
 - **雙擊影像**（或 Enter / Esc）→ 開啟管理介面，並自動選取目前這張
@@ -88,13 +88,13 @@ build.bat
 
 ## 設定（字體大小）
 
-在 Photo Viewer 按右上角的**齒輪**，或選單「**設定 > 顯示與字體大小…**」（Ctrl+,）：
+在 Kirapix 按右上角的**齒輪**，或選單「**設定 > 顯示與字體大小…**」（Ctrl+,）：
 
 - 用滑桿（8～18 pt）或「小／標準／大／特大」按鈕調整整個軟體的字體大小，畫面立即預覽
 - 按「確定」儲存（下次開啟沿用），「取消」恢復原本大小，「還原預設」回到 9.5 pt
-- Quick Viewer 的資訊文字也會套用（下次開啟時）
+- Kirapix Quick 的資訊文字也會套用（下次開啟時）
 
-## Photo Viewer：管理模式
+## Kirapix：管理模式
 
 - 左：快速存取（桌面/圖片/下載/文件，Ctrl+D 加入我的最愛）＋資料夾樹
 - 中：縮圖瀏覽（背景多執行緒產生、磁碟快取、Ctrl+滾輪調整大小、可拖曳檔案到其他程式）
@@ -115,13 +115,13 @@ build.bat
 - 可設定間距、四周留邊與底色；即時預覽並顯示輸出尺寸
 - 輸出 JPEG 或 PNG，存到目前資料夾（可更改）；可勾選「完成後開啟編輯」，再裁切、調整尺寸或加上文字
 
-## Photo Viewer：編輯模式（修圖）
+## Kirapix：編輯模式（修圖）
 
 在縮圖上按右鍵 →「編輯」（或 Ctrl+E）。所有調整皆為**非破壞性**，即時預覽，儲存時才以完整解析度套用。
 
 | 區塊 | 功能 |
 |---|---|
-| 曝光／光線 | 曝光 (EV)、亮度、對比、亮部、陰影（局部適應，類似 ACDSee Light EQ）、白色、黑色、清晰度、去霧、一鍵自動調整光線 |
+| 曝光／光線 | 曝光 (EV)、亮度、對比、亮部、陰影（依局部明暗自動調整）、白色、黑色、清晰度、去霧、一鍵自動調整光線 |
 | 色階 | RGB／紅／綠／藍通道，拖曳黑點／中間調／白點與輸出範圍，自動色階、自動對比 |
 | 色調曲線 | RGB 與各通道曲線，點擊新增控制點、右鍵刪除 |
 | 白平衡與飽和度 | 色溫、色調、**滴管點選中性灰自動校正**、鮮豔度、飽和度 |
@@ -143,17 +143,42 @@ build.bat
 - 按住「比較原圖」或 `\` 鍵檢視原圖；Ctrl+Z / Ctrl+Y 復原 / 取消復原；雙擊任何滑桿重設該項
 - 儲存（Ctrl+S）會先把原檔備份到 `%LOCALAPPDATA%\PhotoViewer\originals`；另存新檔（Ctrl+Shift+S）可選 JPEG/PNG/WEBP/TIFF/BMP、品質與輸出尺寸；保留 EXIF 與 ICC 色彩描述檔
 
+## 第三方元件授權
+
+本程式使用下列開放原始碼元件，各依其授權條款散布。完整條文在 [`licenses/`](licenses/)（安裝後位於程式資料夾的 `licenses`），程式內可從「說明 > 開放原始碼授權…」查看。
+
+| 元件 | 授權 |
+|---|---|
+| Qt 6 / PySide6、Shiboken6 | GNU LGPL v3（[原始碼](https://download.qt.io/official_releases/qt/)、[PySide6 原始碼](https://code.qt.io/cgit/pyside/pyside-setup.git/)） |
+| Python | Python Software Foundation License |
+| NumPy | BSD 3-Clause（含隨附元件的授權） |
+| Pillow | MIT-CMU（HPND，含隨附影像函式庫的授權） |
+| PyInstaller 啟動程式 | GPL 2.0+，附 bootloader 例外條款 |
+
+Qt 與 PySide6 未經修改，以動態連結方式使用：Qt 函式庫是程式資料夾內獨立的 DLL 檔案（`_internal\PySide6`），可以自行替換成相容版本。`build.bat` 打包時會執行 `packaging\collect_licenses.py`，從目前的 Python 環境更新授權檔案與版本號，並把 `licenses` 複製到程式資料夾。
+
+## 商標聲明
+
+文中提到的產品名稱與商標（例如 Windows）屬於其各自的擁有者。本專案為個人獨立開發，未經任何商業看圖或修圖軟體廠商授權、贊助或認可，也與它們沒有任何關係。
+
 ## 資料存放位置
 
 - 設定、評等：`%APPDATA%\PhotoViewer\`
 - 縮圖快取、原檔備份、預設集：`%LOCALAPPDATA%\PhotoViewer\`
+- Microsoft Store 版的原檔備份：`圖片\Kirapix 原檔備份`（Store App 解除安裝時會清除自己的 AppData，原檔備份放在這裡才不會被刪掉）
+
+（1.4.0 起程式改名為 Kirapix；為了讓舊版順利升級、保留你的設定與預設看圖程式，exe 檔名與設定資料夾名稱維持不變。）
+
+## Microsoft Store
+
+上架用的商品資訊、螢幕擷取畫面、商店圖片與步驟說明在 [`store/`](store/)；隱私權政策在 [`PRIVACY.md`](PRIVACY.md)。MSIX 套件由 `packaging\build_msix.py` 產生。
 
 ## 程式結構
 
 ```
 main.py            進入點
-quickviewer.py     Quick Viewer 進入點（QuickViewer.exe）
-pv/quick.py        Quick Viewer 視窗（只用 QtCore/QtGui，背景預先載入）
+quickviewer.py     Kirapix Quick 進入點（QuickViewer.exe）
+pv/quick.py        Kirapix Quick 視窗（只用 QtCore/QtGui，背景預先載入）
 pv/startup.py      兩個程式共用的啟動工具（錯誤記錄、中文按鈕、互相啟動）
 pv/mainwindow.py   主視窗與 管理/檢視/編輯 模式切換（編輯器延遲載入）
 pv/viewer.py       檢視模式（預先載入、縮圖列、全螢幕、投影片）
@@ -167,4 +192,6 @@ pv/thumbs.py       縮圖快取與縮圖模型
 pv/editwidgets.py  滑桿、色階分佈圖、色階與曲線元件
 pv/dialogs.py      重新命名、批次處理、調整尺寸、儲存選項、說明
 pv/common.py       共用工具（EXIF、無損旋轉、評等、圖示…）
+licenses/          第三方元件授權條文與 THIRD-PARTY-NOTICES.txt
+packaging/         PyInstaller 規格、安裝檔腳本、圖示與授權檔案產生器
 ```

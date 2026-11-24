@@ -1,4 +1,4 @@
-"""Main window: ACDSee-style mode bar (管理 / 檢視 / 編輯) with stacked pages."""
+"""Main window: mode bar (管理 / 檢視 / 編輯) with stacked pages."""
 from __future__ import annotations
 
 import os
@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                                QButtonGroup, QStackedWidget, QMenu, QMessageBox)
 
 from .common import APP_TITLE, Settings, RatingDB, app_icon, is_image, norm, glyph_icon, G
-from .dialogs import show_shortcuts, show_about, SettingsDialog
+from .dialogs import show_shortcuts, show_about, show_licenses, show_donate, SettingsDialog
 from .manager import ManagePage
 from .thumbs import ThumbCache
 from .viewer import ViewPage
@@ -59,6 +59,11 @@ class MainWindow(QMainWindow):
         a = self.help_menu.addAction('快速鍵一覽')
         a.setShortcut(QKeySequence('F1'))
         a.triggered.connect(lambda: show_shortcuts(self))
+        self.help_menu.addAction('開放原始碼授權…', lambda: show_licenses(self))
+        from .common import DONATE_URL
+        if DONATE_URL:
+            self.help_menu.addSeparator()
+            self.help_menu.addAction(glyph_icon(G.HEART, '#ff7aa8'), f'贊助 {APP_TITLE}…', lambda: show_donate(self))
         self.help_menu.addAction('關於', lambda: show_about(self))
         self.settings_menu = QMenu('設定(&S)', self)
         self.act_settings = self.settings_menu.addAction(glyph_icon(G.SETTINGS), '顯示與字體大小…')
@@ -113,6 +118,14 @@ class MainWindow(QMainWindow):
             self.mode_group.addButton(b)
             self.mode_buttons[key] = b
             h.addWidget(b)
+        from .common import DONATE_URL
+        if DONATE_URL:
+            heart = QPushButton(glyph_icon(G.HEART, '#ff7aa8'), '')
+            heart.setObjectName('DonateButton')
+            heart.setToolTip(f'贊助 {APP_TITLE}（自願小額贊助）')
+            heart.setFocusPolicy(Qt.NoFocus)
+            heart.clicked.connect(lambda: show_donate(self))
+            h.addWidget(heart)
         gear = QPushButton(glyph_icon(G.SETTINGS), '')
         gear.setToolTip('設定：字體大小（Ctrl+,）')
         gear.setFocusPolicy(Qt.NoFocus)

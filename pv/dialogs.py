@@ -506,10 +506,10 @@ class SettingsDialog(QDialog):
             presets.addWidget(b)
         presets.addStretch(1)
         g.addLayout(presets)
-        self.preview = QLabel('預覽：Photo Viewer 相片管理與修圖　Quick Viewer 快速看圖　ABC abc 123')
+        self.preview = QLabel('預覽：Kirapix 相片管理與修圖　Kirapix Quick 快速看圖　ABC abc 123')
         self.preview.setWordWrap(True)
         g.addWidget(self.preview)
-        note = QLabel('變更會立即套用到 Photo Viewer 的所有畫面；Quick Viewer 的資訊文字會在下次開啟時套用。')
+        note = QLabel('變更會立即套用到 Kirapix 的所有畫面；Kirapix Quick 的資訊文字會在下次開啟時套用。')
         note.setObjectName('Hint')
         note.setWordWrap(True)
         g.addWidget(note)
@@ -611,6 +611,85 @@ def show_shortcuts(parent):
 
 
 def show_about(parent):
+    from .common import DONATE_URL
+    donate = ('<p>Kirapix 免費使用；如果喜歡，歡迎從「說明 &gt; 贊助 Kirapix」小額支持。</p>' if DONATE_URL else '')
     QMessageBox.about(parent, '關於', f'<h3>{APP_TITLE}</h3><p>版本 {__version__}</p>'
-                      '<p>仿 ACDSee 操作方式的相片管理與影像編輯工具；雙擊圖片則由 Quick Viewer 快速開啟。</p>'
-                      '<p>Python · PySide6 (Qt) · NumPy · Pillow</p>')
+                      '<p>快速看圖、相片管理與影像編輯工具；雙擊圖片則由 Kirapix Quick 快速開啟。</p>'
+                      + donate +
+                      '<p>使用開放原始碼元件：Qt / PySide6（LGPL v3）、Python、NumPy、Pillow。<br>'
+                      '授權條文請見「說明 &gt; 開放原始碼授權」。</p>')
+
+
+def show_donate(parent):
+    """Voluntary donation: explain first (free app, unlocks nothing, paid via the named service), then open
+    the donation page in the browser only if the user chooses to."""
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+    from .common import DONATE_URL, DONATE_PROVIDER, app_icon_image
+    if not DONATE_URL:
+        return False
+    box = QMessageBox(parent)
+    box.setStyleSheet('QLabel#qt_msgbox_informativelabel { min-width: 27em; }')
+    box.setWindowTitle(f'贊助 {APP_TITLE}')
+    box.setIconPixmap(QPixmap.fromImage(app_icon_image(64)))
+    box.setText(f'<h3>喜歡 {APP_TITLE} 嗎？</h3>')
+    provider = f'<b>{DONATE_PROVIDER}</b>' if DONATE_PROVIDER else '贊助頁面'
+    box.setInformativeText(
+        f'{APP_TITLE} 免費使用，沒有廣告，也不收集任何資料。<br>'
+        f'如果它幫上你的忙，歡迎透過 {provider} 小額贊助，支持持續開發。<br><br>'
+        '<span style="color:#9a9aa0">贊助完全自願，不會解鎖任何功能。按「前往贊助頁面」會用瀏覽器開啟贊助網站，'
+        '付款由該服務處理，本程式不會經手任何付款資料。</span>')
+    go = box.addButton('前往贊助頁面', QMessageBox.AcceptRole)
+    box.addButton('以後再說', QMessageBox.RejectRole)
+    box.setDefaultButton(go)
+    box.exec()
+    if box.clickedButton() is go:
+        QDesktopServices.openUrl(QUrl(DONATE_URL))
+        return True
+    return False
+
+
+def licenses_dir():
+    """licenses/ next to the executables (installed / portable) or at the repository root (source)."""
+    import sys
+    if getattr(sys, 'frozen', False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, 'licenses')
+
+
+class LicensesDialog(QDialog):
+    """Third-party notices (licenses/THIRD-PARTY-NOTICES.txt) with a button to open the full license texts."""
+
+    def __init__(self, parent=None):
+        from PySide6.QtWidgets import QPlainTextEdit
+        super().__init__(parent)
+        self.setWindowTitle('開放原始碼授權')
+        self.resize(760, 560)
+        self.folder = licenses_dir()
+        v = QVBoxLayout(self)
+        v.addWidget(QLabel(f'{APP_TITLE} 使用下列開放原始碼元件。完整授權條文在程式資料夾的 licenses 資料夾中。'))
+        text = QPlainTextEdit()
+        text.setReadOnly(True)
+        text.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        path = os.path.join(self.folder, 'THIRD-PARTY-NOTICES.txt')
+        try:
+            with open(path, encoding='utf-8-sig') as f:
+                text.setPlainText(f.read())
+        except OSError:
+            text.setPlainText('找不到授權說明檔案：\n' + path + '\n\n'
+                              '本程式使用 Qt / PySide6（LGPL v3）、Python（PSF License）、NumPy（BSD）、'
+                              'Pillow（MIT-CMU）與 PyInstaller（GPL，附 bootloader 例外條款）。')
+        v.addWidget(text, 1)
+        bb = QDialogButtonBox(QDialogButtonBox.Close)
+        bb.button(QDialogButtonBox.Close).setText('關閉')
+        self.open_btn = bb.addButton('開啟授權檔案資料夾', QDialogButtonBox.ActionRole)
+        self.open_btn.setEnabled(os.path.isdir(self.folder))
+        self.open_btn.clicked.connect(lambda: os.startfile(self.folder))
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+
+
+def show_licenses(parent):
+    LicensesDialog(parent).exec()

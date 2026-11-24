@@ -14,7 +14,10 @@ from PySide6.QtGui import (QImage, QImageReader, QImageIOHandler, QIcon, QPixmap
                            QFont, QColor, QFontDatabase, QLinearGradient, QPolygonF)
 
 APP_NAME = "PhotoViewer"
-APP_TITLE = "Photo Viewer"
+APP_TITLE = "Kirapix"
+# Optional, voluntary donation link (shown in 說明 menu, About and the mode bar only when set).
+DONATE_URL = ""
+DONATE_PROVIDER = ""          # name of the payment service shown to the user, e.g. "Buy Me a Coffee"
 
 IMAGE_EXTS = {'.jpg', '.jpeg', '.jpe', '.jfif', '.png', '.bmp', '.gif', '.webp', '.tif',
               '.tiff', '.ico', '.tga', '.ppm', '.pgm', '.pbm'}
@@ -61,9 +64,35 @@ def app_data_dir() -> str:
     return d
 
 
+_packaged = None
+
+
+def is_packaged() -> bool:
+    """True when running from the Microsoft Store (MSIX) package."""
+    global _packaged
+    if _packaged is None:
+        _packaged = False
+        if os.name == 'nt':
+            try:
+                import ctypes
+                n = ctypes.c_uint32(0)
+                # ERROR_INSUFFICIENT_BUFFER when packaged, APPMODEL_ERROR_NO_PACKAGE (15700) when not
+                _packaged = ctypes.windll.kernel32.GetCurrentPackageFullName(ctypes.byref(n), None) != 15700
+            except (AttributeError, OSError):
+                pass
+    return _packaged
+
+
 def cache_dir(sub: str) -> str:
-    base = os.environ.get('LOCALAPPDATA') or app_data_dir()
-    d = os.path.join(base, APP_NAME, sub)
+    if sub == 'originals' and is_packaged():
+        # Windows deletes a Store app's AppData when it is uninstalled; backups of the user's own photos
+        # must survive that, so the Store version keeps them in Pictures.
+        from PySide6.QtCore import QStandardPaths
+        pics = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.PicturesLocation)
+        d = os.path.join(pics or os.path.expanduser('~'), 'Kirapix 原檔備份')
+    else:
+        base = os.environ.get('LOCALAPPDATA') or app_data_dir()
+        d = os.path.join(base, APP_NAME, sub)
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -206,6 +235,7 @@ class G:
     PRESET = ''
     PREVIEW = ''
     SETTINGS = ''
+    HEART = ''
     TEXT = ''
     BOLD = ''
     ITALIC = ''
@@ -267,28 +297,127 @@ def glyph_icon(code: str, color='#e3e3e3', mirror=False) -> QIcon:
     return icon
 
 
-def app_icon() -> QIcon:
-    icon = QIcon()
-    for s in (16, 24, 32, 48, 64, 128, 256):
-        pm = QPixmap(s, s)
-        pm.fill(Qt.transparent)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.Antialiasing)
-        grad = QLinearGradient(0, 0, s, s)
-        grad.setColorAt(0, QColor('#2f8cff'))
-        grad.setColorAt(1, QColor('#7b4dff'))
-        p.setBrush(grad)
+ICON_SIZES = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
+
+
+def _squircle(margin, n=5.0, steps=160):
+    """Superellipse (Windows 11 style rounded square) in a 100 x 100 box."""
+    import math
+    from PySide6.QtGui import QPainterPath
+    h = 50.0 - margin
+    path = QPainterPath()
+    for i in range(steps):
+        t = 2 * math.pi * i / steps
+        c, s = math.cos(t), math.sin(t)
+        x = 50 + h * math.copysign(abs(c) ** (2 / n), c)
+        y = 50 + h * math.copysign(abs(s) ** (2 / n), s)
+        (path.moveTo if i == 0 else path.lineTo)(x, y)
+    path.closeSubpath()
+    return path
+
+
+def app_icon_image(size: int) -> QImage:
+    """The app icon drawn natively at one pixel size: a stack of two photos on a blue-violet squircle.
+
+    Small sizes (24 px and below) drop the back photo and the shadow and enlarge the front photo so it
+    stays readable in the taskbar and title bar.
+    """
+    from PySide6.QtGui import QPainterPath, QPen, QTransform
+    small = size <= 24
+    img = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
+    img.fill(Qt.transparent)
+    p = QPainter(img)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.scale(size / 100.0, size / 100.0)
+
+    def grad(x0, y0, x1, y1, stops):
+        g = QLinearGradient(x0, y0, x1, y1)
+        for pos, col in stops:
+            g.setColorAt(pos, QColor(col))
+        return g
+
+    shape = _squircle(1.5 if small else 4)
+    p.fillPath(shape, grad(0, 0, 100, 100, [(0, '#2E8BFF'), (0.55, '#5B5BFF'), (1, '#A03FEE')]))
+    p.save()
+    p.setClipPath(shape)
+    # (centre, size, angle, opacity): back photo (translucent) and front photo
+    cards = [((50, 53), (74, 60), 0, 1.0)] if small else [((45, 50), (56, 46), -13, 0.5),
+                                                         ((54, 55), (62, 50), 7, 1.0)]
+
+    def card(c, wh, ang):
+        tr = QTransform()
+        tr.translate(*c)
+        tr.rotate(ang)
+        r = QPainterPath()
+        r.addRoundedRect(QRectF(-wh[0] / 2, -wh[1] / 2, wh[0], wh[1]), 4.5, 4.5)
+        return tr.map(r), tr
+
+    if not small:   # soft shadow under the front photo: drawn small, scaled up = blurred
+        sh = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
+        sh.fill(Qt.transparent)
+        q = QPainter(sh)
+        q.setRenderHint(QPainter.Antialiasing)
+        q.scale(size / 100.0, size / 100.0)
+        q.translate(1.2, 3.2)
+        q.setPen(Qt.NoPen)
+        q.setBrush(QColor(0, 0, 0, 110))
+        q.drawPath(card(*cards[-1][:3])[0])
+        q.end()
+        k = max(2, int(size * 0.06))
+        sh = sh.scaled(max(1, size // k), max(1, size // k), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        sh = sh.scaled(size, size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        p.save()
+        p.resetTransform()
+        p.drawImage(0, 0, sh)
+        p.restore()
+    for c, wh, ang, op in cards:
+        path, tr = card(c, wh, ang)
         p.setPen(Qt.NoPen)
-        p.drawRoundedRect(QRectF(s * 0.06, s * 0.06, s * 0.88, s * 0.88), s * 0.2, s * 0.2)
-        p.setBrush(QColor(255, 214, 90))
-        p.drawEllipse(QPointF(s * 0.68, s * 0.34), s * 0.1, s * 0.1)
-        p.setBrush(QColor(255, 255, 255, 240))
-        p.drawPolygon(QPolygonF([QPointF(s * 0.16, s * 0.78), QPointF(s * 0.40, s * 0.44),
-                                 QPointF(s * 0.56, s * 0.64), QPointF(s * 0.66, s * 0.54),
-                                 QPointF(s * 0.84, s * 0.78)]))
-        p.end()
-        icon.addPixmap(pm)
-    return icon
+        p.setBrush(QColor(255, 255, 255, int(255 * op)))
+        p.drawPath(path)
+        if op < 1:
+            continue
+        inset = 5.0 if small else 4.0
+        w, h = wh[0] - 2 * inset, wh[1] - 2 * inset
+        p.save()
+        p.setTransform(tr, True)
+        p.translate(-w / 2, -h / 2)
+        photo = QPainterPath()
+        photo.addRoundedRect(QRectF(0, 0, w, h), 2.2, 2.2)
+        p.setClipPath(photo, Qt.IntersectClip)
+        p.fillRect(QRectF(0, 0, w, h), grad(0, 0, 0, h, [(0, '#4FC3FF'), (1, '#C9F0FF')]))
+        p.setBrush(QColor('#FFC83D'))                                   # sun
+        p.drawEllipse(QPointF(w * 0.73, h * 0.30), w * 0.12, w * 0.12)
+        p.setBrush(QColor('#41C47F'))                                   # mountains
+        p.drawPolygon(QPolygonF([QPointF(-2, h + 1), QPointF(w * 0.30, h * 0.42), QPointF(w * 0.55, h * 0.72),
+                                 QPointF(w * 0.68, h * 0.58), QPointF(w + 2, h + 1)]))
+        p.setBrush(QColor('#1E8F5C'))
+        p.drawPolygon(QPolygonF([QPointF(-2, h + 1), QPointF(w * 0.18, h * 0.66), QPointF(w * 0.42, h + 1)]))
+        p.restore()
+    p.restore()
+    hl = QLinearGradient(0, 0, 0, 100)                                  # soft top highlight + hairline edge
+    hl.setColorAt(0.0, QColor(255, 255, 255, 70))
+    hl.setColorAt(0.45, QColor(255, 255, 255, 0))
+    p.fillPath(shape, hl)
+    p.setPen(QPen(QColor(255, 255, 255, 50), 0.8))
+    p.setBrush(Qt.NoBrush)
+    p.drawPath(shape)
+    p.end()
+    return img
+
+
+_app_icon = None
+
+
+def app_icon() -> QIcon:
+    global _app_icon
+    if _app_icon is None:
+        icon = QIcon()
+        for s in ICON_SIZES:
+            icon.addPixmap(QPixmap.fromImage(app_icon_image(s)))
+        _app_icon = icon
+    return _app_icon
 
 
 # --------------------------------------------------------------------------- image I/O

@@ -1,9 +1,9 @@
-"""Quick Viewer - fast, lightweight image viewer (entry point for QuickViewer.exe).
+"""Kirapix Quick - fast, lightweight image viewer (entry point for QuickViewer.exe).
 
 Usage:
-    QuickViewer.exe <image file>   view it; ←/→ browse the folder; double-click / Enter opens Photo Viewer
+    QuickViewer.exe <image file>   view it; ←/→ browse the folder; double-click / Enter opens Kirapix
     QuickViewer.exe <folder>       view the first image of the folder
-    QuickViewer.exe                starts Photo Viewer instead
+    QuickViewer.exe                starts Kirapix instead
 """
 import os
 import sys
@@ -14,7 +14,7 @@ def main():
     if here not in sys.path:
         sys.path.insert(0, here)
     from pv import startup
-    startup.install_crash_log(lambda msg: startup.message_box(msg, 'Quick Viewer 錯誤'))
+    startup.install_crash_log(lambda msg: startup.message_box(msg, 'Kirapix Quick 錯誤'))
     startup.set_app_id('PhotoViewer.QuickViewer')
 
     args = [a for a in sys.argv[1:] if not a.startswith('--')]

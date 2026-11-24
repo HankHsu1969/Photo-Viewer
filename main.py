@@ -1,11 +1,11 @@
-"""Photo Viewer - photo manager / viewer / editor (entry point for PhotoViewer.exe).
+"""Kirapix - photo manager / viewer / editor (entry point for PhotoViewer.exe).
 
 Usage:
     python main.py                       open the manager at the last folder
     python main.py <image file>          open the image in view mode (←/→ to browse the folder)
     python main.py <folder>              open the manager at that folder
-    python main.py --manage <image>      open the manager with that image selected (used by Quick Viewer)
-    python main.py --edit <image>        open that image in the editor (used by Quick Viewer)
+    python main.py --manage <image>      open the manager with that image selected (used by Kirapix Quick)
+    python main.py --edit <image>        open that image in the editor (used by Kirapix Quick)
 """
 import os
 import sys
@@ -14,7 +14,7 @@ import sys
 def _show_error(msg):
     from PySide6.QtWidgets import QApplication, QMessageBox
     if QApplication.instance() is not None:
-        QMessageBox.critical(None, 'Photo Viewer 錯誤', msg)
+        QMessageBox.critical(None, 'Kirapix 錯誤', msg)
 
 
 def parse_args(argv):

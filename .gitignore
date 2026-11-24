@@ -8,3 +8,4 @@ dist/
 
 # temp files written during atomic saves / rotations
 *.pvtmp
+tools/

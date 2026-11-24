@@ -1,0 +1,36 @@
+﻿Kirapix / Kirapix Quick — 第三方元件授權聲明（Third-party notices）
+
+本程式（Kirapix 與 Kirapix Quick）使用下列開放原始碼元件，各元件依其授權條款散布。
+完整授權條文都放在這個 licenses 資料夾中。
+This software uses the open-source components listed below. Each is distributed under its own
+license; the full license texts are in this "licenses" folder.
+
+
+1. Qt 6 / Qt for Python（PySide6 6.12.0、Shiboken6 6.12.0）
+   授權 License : GNU Lesser General Public License v3（LGPL-3.0.txt；LGPL v3 引用 GPL-3.0.txt 的條文）
+   著作權 Copyright : The Qt Company Ltd. 及其他貢獻者 and other contributors
+   原始碼 Source : https://download.qt.io/official_releases/qt/
+                   https://code.qt.io/cgit/pyside/pyside-setup.git/
+   Qt 隨附的第三方元件 Third-party code in Qt : https://doc.qt.io/qt-6/licenses-used-in-qt.html
+
+   本程式以動態連結方式使用未經修改的 Qt 與 PySide6：Qt 函式庫是程式資料夾內獨立的 DLL 檔案
+   （_internal\PySide6），可以用相容的版本自行替換。
+   Qt and PySide6 are used unmodified and linked dynamically: the Qt libraries are separate DLL
+   files in the program folder (_internal\PySide6) and can be replaced with compatible versions.
+
+2. Python 3.15.2
+   授權 License : Python Software Foundation License Version 2（Python-LICENSE.txt，含 Python 隨附元件的授權）
+   著作權 Copyright : Python Software Foundation
+
+3. NumPy 2.5.4
+   授權 License : BSD 3-Clause，及 NumPy 隨附元件的授權（NumPy-LICENSE.txt）
+   著作權 Copyright : NumPy Developers
+
+4. Pillow 13.0.0
+   授權 License : MIT-CMU（HPND），及 Pillow 隨附影像函式庫的授權（Pillow-LICENSE.txt）
+   著作權 Copyright : Jeffrey A. Clark and contributors; Secret Labs AB; Fredrik Lundh
+
+5. PyInstaller 6.22.3（程式啟動器 bootloader）
+   授權 License : GNU GPL v2 或更新版本，附 bootloader 例外條款：允許以任何條款散布用 PyInstaller
+                  打包的程式（PyInstaller-COPYING.txt）
+   GPL 2.0 or later with a bootloader exception that allows distributing bundled programs under any terms.

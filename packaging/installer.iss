@@ -1,12 +1,12 @@
-﻿; Photo Viewer installer (Inno Setup 6). Build with build.bat, or:
+﻿; Kirapix installer (Inno Setup 6). Build with build.bat, or:
 ;   ISCC packaging\installer.iss
 ; Per-user install (no admin): %LOCALAPPDATA%\Programs\PhotoViewer
 
-#define AppName "Photo Viewer"
-#define AppVersion "1.3.0"
+#define AppName "Kirapix"
+#define AppVersion "1.4.0"
 #define AppExe "PhotoViewer.exe"
 #define QuickExe "QuickViewer.exe"
-#define QuickName "Quick Viewer"
+#define QuickName "Kirapix Quick"
 #define Root ".."
 
 [Setup]
@@ -14,14 +14,14 @@ AppId={{71A24371-3A86-4A2E-8C09-48DB9B1E8911}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
-AppPublisher=Photo Viewer
-AppComments=相片管理與影像編輯；雙擊圖片以 Quick Viewer 快速看圖
+AppPublisher=Kirapix
+AppComments=相片管理與影像編輯；雙擊圖片以 Kirapix Quick 快速看圖
 PrivilegesRequired=lowest
-DefaultDirName={autopf}\PhotoViewer
+DefaultDirName={autopf}\Kirapix
 DisableProgramGroupPage=yes
 UsePreviousAppDir=yes
 OutputDir={#Root}\dist\installer
-OutputBaseFilename=PhotoViewer-Setup-{#AppVersion}
+OutputBaseFilename=Kirapix-Setup-{#AppVersion}
 SetupIconFile={#Root}\assets\app.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
@@ -39,7 +39,7 @@ VersionInfoDescription={#AppName} 安裝程式
 VersionInfoProductName={#AppName}
 
 [Tasks]
-Name: "fileassoc"; Description: "雙擊圖片用 Quick Viewer 開啟：加入「開啟檔案」清單（JPG、PNG、GIF、WEBP、TIFF…）"; GroupDescription: "整合："
+Name: "fileassoc"; Description: "雙擊圖片用 Kirapix Quick 開啟：加入「開啟檔案」清單（JPG、PNG、GIF、WEBP、TIFF…）"; GroupDescription: "整合："
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
@@ -50,16 +50,19 @@ Source: "{#Root}\dist\PhotoViewer\*"; DestDir: "{app}"; Excludes: "Register-Open
 Type: files; Name: "{app}\QuickView.exe"
 Type: files; Name: "{autoprograms}\Photo Viewer 看圖.lnk"
 Type: files; Name: "{autodesktop}\Photo Viewer 看圖.lnk"
+; renamed in 1.4.0: Photo Viewer -> Kirapix (exe names, ProgID, settings folder and AppId are unchanged)
+Type: files; Name: "{autoprograms}\Photo Viewer.lnk"
+Type: files; Name: "{autodesktop}\Photo Viewer.lnk"
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "相片管理與影像編輯"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
-; Double-clicked images open in the lightweight Quick Viewer (QuickViewer.exe)
+; Double-clicked images open in the lightweight Kirapix Quick (QuickViewer.exe)
 ; ProgID
-Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: ""; ValueData: "Quick Viewer 影像"; Flags: uninsdeletekey; Tasks: fileassoc
-Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: "FriendlyTypeName"; ValueData: "Quick Viewer 影像"; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: ""; ValueData: "Kirapix Quick 影像"; Flags: uninsdeletekey; Tasks: fileassoc
+Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image"; ValueType: string; ValueName: "FriendlyTypeName"; ValueData: "Kirapix Quick 影像"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#QuickExe}"",0"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell"; ValueType: string; ValueName: ""; ValueData: "open"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\Classes\PhotoViewer.Image\shell\open"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#QuickName}"; Tasks: fileassoc
@@ -99,7 +102,7 @@ Root: HKA; Subkey: "Software\Classes\.tga\OpenWithProgids"; ValueType: string; V
 ; Capabilities: list under Settings > Apps > Default apps
 Root: HKA; Subkey: "Software\PhotoViewer"; Flags: uninsdeletekeyifempty; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "{#QuickName}"; Flags: uninsdeletekey; Tasks: fileassoc
-Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "快速看圖；雙擊開啟 Photo Viewer 管理與修圖"; Tasks: fileassoc
+Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "快速看圖；雙擊開啟 Kirapix 管理與修圖"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: """{app}\{#QuickExe}"",0"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpg"; ValueData: "PhotoViewer.Image"; Tasks: fileassoc
 Root: HKA; Subkey: "Software\PhotoViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpeg"; ValueData: "PhotoViewer.Image"; Tasks: fileassoc

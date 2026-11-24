@@ -1,4 +1,4 @@
-"""Manage mode: folder tree, thumbnail browser, preview and properties (ACDSee style)."""
+"""Manage mode: folder tree, thumbnail browser, preview and properties."""
 from __future__ import annotations
 
 import os

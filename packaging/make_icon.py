@@ -5,7 +5,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QSize  # noqa: E402
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice  # noqa: E402
 from PySide6.QtGui import QGuiApplication  # noqa: E402
 from PIL import Image  # noqa: E402
 import io  # noqa: E402
@@ -13,15 +13,13 @@ import io  # noqa: E402
 
 def main():
     app = QGuiApplication(sys.argv)  # noqa: F841
-    from pv.common import app_icon
-    icon = app_icon()
+    from pv.common import app_icon_image, ICON_SIZES
     images = []
-    for s in (256, 128, 64, 48, 32, 24, 16):
-        pm = icon.pixmap(QSize(s, s), 1.0)
+    for s in sorted(ICON_SIZES, reverse=True):   # 256 ... 16, each drawn natively (not downscaled)
         ba = QByteArray()
         buf = QBuffer(ba)
         buf.open(QIODevice.WriteOnly)
-        pm.save(buf, 'PNG')
+        app_icon_image(s).save(buf, 'PNG')
         buf.close()
         images.append(Image.open(io.BytesIO(bytes(ba))).convert('RGBA'))
     out_dir = os.path.join(ROOT, 'assets')

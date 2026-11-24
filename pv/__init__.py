@@ -1,2 +1,2 @@
-"""Photo Viewer - an ACDSee-style fast image viewer, manager and editor."""
-__version__ = "1.3.0"
+"""Kirapix - a fast image viewer, photo manager and editor."""
+__version__ = "1.4.0"

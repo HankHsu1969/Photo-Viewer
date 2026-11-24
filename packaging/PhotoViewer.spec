@@ -3,7 +3,7 @@
 #
 # Produces one folder with two executables sharing the same libraries:
 #   PhotoViewer.exe  full manager / viewer / editor
-#   QuickViewer.exe  Quick Viewer: lightweight fast viewer for double-clicked images (QtGui only)
+#   QuickViewer.exe  Kirapix Quick: lightweight fast viewer for double-clicked images (QtGui only)
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))

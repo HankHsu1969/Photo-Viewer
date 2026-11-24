@@ -57,7 +57,7 @@ def set_app_id(app_id='PhotoViewer.App'):
             pass
 
 
-def message_box(text, title='Photo Viewer', yes_no=False, hwnd=0):
+def message_box(text, title='Kirapix', yes_no=False, hwnd=0):
     """Native Windows message box (works without QtWidgets). Returns True for OK/Yes."""
     if sys.platform != 'win32':
         return False
